@@ -3,9 +3,6 @@ package com.lu.wxmask;
 import android.app.Application;
 import android.app.Instrumentation;
 import android.content.Context;
-import android.content.res.Resources;
-import android.content.res.XModuleResources;
-import android.nfc.Tag;
 
 import androidx.annotation.Keep;
 import androidx.annotation.NonNull;
@@ -19,7 +16,6 @@ import com.lu.magic.util.log.SimpleLogger;
 import com.lu.wxmask.plugin.CommonPlugin;
 import com.lu.wxmask.plugin.WXConfigPlugin;
 import com.lu.wxmask.plugin.WXMaskPlugin;
-import com.lu.wxmask.util.Rm;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -41,13 +37,16 @@ public class MainHook implements IXposedHookLoadPackage, IXposedHookZygoteInit, 
     private List<XC_MethodHook.Unhook> initUnHookList = new ArrayList<>();
     private static String MODULE_PATH = null;
 
+    private HookLoader loader = new HookLoader();
+    private StartupParam startupParam;
+
     @Override
     public void handleLoadPackage(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
 //        if (BuildConfig.APPLICATION_ID.equals(lpparam.packageName)) {
 //            SelfHook.getInstance().handleLoadPackage(lpparam);
 //            return;
 //        }
-
+//        loader.handleLoadPackage(lpparam, startupParam);
 
         HashSet<String> allowList = new HashSet<>();
         allowList.add(BuildConfig.APPLICATION_ID);
@@ -215,12 +214,12 @@ public class MainHook implements IXposedHookLoadPackage, IXposedHookZygoteInit, 
                 WXConfigPlugin.class,
                 WXMaskPlugin.class
         ).handleHooks(context, lpparam);
-
     }
 
     @Override
     public void initZygote(StartupParam startupParam) throws Throwable {
         MODULE_PATH = startupParam.modulePath;
+        this.startupParam = startupParam;
     }
 
     @Override

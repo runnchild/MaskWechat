@@ -1,0 +1,76 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
+apply {
+    from rootProject.file('props.gradle')
+}
+android {
+    namespace 'com.example.loaded'
+    compileSdk 33
+
+    defaultConfig {
+        applicationId "com.example.loader"
+        versionCode 1
+        versionName "1.0"
+        minSdk 24
+        targetSdk 33
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        consumerProguardFiles "consumer-rules.pro"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
+    }
+    kotlinOptions {
+        jvmTarget = '11'
+    }
+}
+
+dependencies {
+
+    implementation(deps['com.github.Mingyueyixi.frame-base-utils:core']) {
+        exclude group: 'androidx.core'
+    }
+    implementation(deps['com.github.Mingyueyixi.frame-ui:ui-appcompat']) {
+        exclude group: 'androidx.core'
+    }
+//    implementation('com.github.Mingyueyixi.frame-ui:ui-appcompat:1.0')
+
+    implementation(deps['com.github.Mingyueyixi.lposed:xposed-api2']) {
+        exclude group: 'androidx.core'
+    }
+    implementation(deps['com.github.Mingyueyixi.lposed:plugin']) {
+        exclude group: 'androidx.core'
+    }
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+
+    compileOnly(deps['de.robv.android.xposed:api'])
+    implementation 'androidx.core:core-ktx:1.7.0'
+}
+
+task createDex(type: Exec) {
+    def outputDir = "$buildDir/outputs/dex"
+    def jarFile = "$buildDir/intermediates/compile_library_classes_jar/release/classes.jar"
+    def dxTool = "${android.getSdkDirectory().absolutePath}\\build-tools\\${android.buildToolsVersion}\\dx.bat"
+    def d8Tool = "${android.getSdkDirectory().absolutePath}\\build-tools\\${android.buildToolsVersion}\\d8.bat"
+
+    doFirst {
+        file(outputDir).mkdirs()
+    }
+
+    commandLine d8Tool, '--output', outputDir, jarFile
+//    commandLine dxTool, '--dex', '--output', "$outputDir/library.dex", jarFile
+}
+
+afterEvaluate {
+    createDex.dependsOn(build)
+}
