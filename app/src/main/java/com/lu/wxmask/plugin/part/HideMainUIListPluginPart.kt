@@ -32,7 +32,10 @@ import java.lang.reflect.Modifier
 class HideMainUIListPluginPart : IPlugin {
     val GetItemMethodName = when (AppVersionUtil.getVersionCode()) {
         Constrant.WX_CODE_8_0_22 -> "aCW"
-        in Constrant.WX_CODE_8_0_22..Constrant.WX_CODE_8_0_43 -> "k"
+        in Constrant.WX_CODE_8_0_22..Constrant.WX_CODE_8_0_43 -> "k" // WX_CODE_PLAY_8_0_42 matches
+        Constrant.WX_CODE_PLAY_8_0_48 -> "l"
+        Constrant.WX_CODE_8_0_49 -> "l"
+        Constrant.WX_CODE_8_0_50 -> "n"
         else -> "m"
     }
 
@@ -59,8 +62,9 @@ class HideMainUIListPluginPart : IPlugin {
             }
 
             Constrant.WX_CODE_8_0_35 -> "com.tencent.mm.ui.conversation.r"
-            in Constrant.WX_CODE_8_0_35..Constrant.WX_CODE_8_0_41 -> "com.tencent.mm.ui.conversation.x"
+            in Constrant.WX_CODE_8_0_35..Constrant.WX_CODE_8_0_41 -> "com.tencent.mm.ui.conversation.x" // WX_CODE_PLAY_8_0_42 matches
             Constrant.WX_CODE_8_0_47 -> "com.tencent.mm.ui.conversation.p3"
+            Constrant.WX_CODE_8_0_50 -> "com.tencent.mm.ui.conversation.q3"
             else -> null
         }
         var adapterClazz: Class<*>? = null
@@ -155,8 +159,10 @@ class HideMainUIListPluginPart : IPlugin {
                 //隐藏未读消息红点
                 private fun hideUnReadTipView(itemView: View, param: MethodHookParam) {
                     //带文字的未读红点
+                    // Res TextView under com.tencent.mm.ui.conversation.ConversationFolderItemView
                     val tipTvIdTextID = when (AppVersionUtil.getVersionCode()) {
                         in 0..Constrant.WX_CODE_8_0_22 -> "tipcnt_tv"
+                        Constrant.WX_CODE_PLAY_8_0_42 -> "oqu"
                         in Constrant.WX_CODE_8_0_22..Constrant.WX_CODE_8_0_41 -> "kmv"
                         else -> "kmv"
                     }
@@ -166,6 +172,7 @@ class HideMainUIListPluginPart : IPlugin {
                     //头像上的小红点
                     val small_red = when (AppVersionUtil.getVersionCode()) {
                         in 0..Constrant.WX_CODE_8_0_40 -> "a2f"
+                        Constrant.WX_CODE_PLAY_8_0_42 -> "a_w"
                         Constrant.WX_CODE_8_0_41 -> "o_u"
                         else -> "o_u"
                     }
@@ -175,9 +182,11 @@ class HideMainUIListPluginPart : IPlugin {
 
                 //隐藏最后一条消息等
                 private fun hideMsgViewItemText(itemView: View, param: MethodHookParam) {
+                    // Res com.tencent.mm.ui.base.NoMeasuredTextView (tag last_msg_tv) under com.tencent.mm.ui.conversation.ConversationFolderItemView
                     val msgTvIdName = when (AppVersionUtil.getVersionCode()) {
                         in 0..Constrant.WX_CODE_8_0_22 -> "last_msg_tv"
                         in Constrant.WX_CODE_8_0_22..Constrant.WX_CODE_8_0_40 -> "fhs"
+                        Constrant.WX_CODE_PLAY_8_0_42 -> "i2_"
                         Constrant.WX_CODE_8_0_41 -> "ht5"
                         else -> "ht5"
                     }
@@ -261,9 +270,10 @@ class HideMainUIListPluginPart : IPlugin {
             Constrant.WX_CODE_8_0_22 -> "com.tencent.mm.ui.g"
             in Constrant.WX_CODE_8_0_32..Constrant.WX_CODE_8_0_34 -> "com.tencent.mm.ui.y"
             in Constrant.WX_CODE_8_0_35..Constrant.WX_CODE_8_0_38 -> "com.tencent.mm.ui.z"
-            in Constrant.WX_CODE_8_0_40..Constrant.WX_CODE_8_0_43 -> "com.tencent.mm.ui.b0"
+            in Constrant.WX_CODE_8_0_40..Constrant.WX_CODE_8_0_43 -> "com.tencent.mm.ui.b0" // WX_CODE_PLAY_8_0_42 matches
             in Constrant.WX_CODE_8_0_43..Constrant.WX_CODE_8_0_44 -> "com.tencent.mm.ui.h3"
-            in Constrant.WX_CODE_8_0_43..Constrant.WX_CODE_8_0_47 -> "com.tencent.mm.ui.i3"
+            in Constrant.WX_CODE_8_0_43..Constrant.WX_CODE_8_0_47,
+            Constrant.WX_CODE_PLAY_8_0_48 , Constrant.WX_CODE_8_0_50-> "com.tencent.mm.ui.i3"
             else -> null
         }
         var getItemMethod = if (adapterClazzName != null) {
@@ -299,7 +309,7 @@ class HideMainUIListPluginPart : IPlugin {
                             getItemMethod = XposedHelpers2.findMethodExactIfExists(adapter::class.java.superclass, "getItem", Integer.TYPE)
                         }
                         if (getItemMethod != null) {
-                            hookListViewGetItem(getItemMethod!!)
+                            hookListViewGetItem(getItemMethod)
                             isHookGetItemMethod = true
                         } else {
                             LogUtil.w("guess getItem method is ", getItemMethod)
@@ -319,7 +329,7 @@ class HideMainUIListPluginPart : IPlugin {
             object : XC_MethodHook2() {
                 override fun afterHookedMethod(param: MethodHookParam) {
                     val itemData: Any = param.result ?: return
-                    LogUtil.v("item-data", GsonUtil.toJson(itemData))
+//                    LogUtil.v("item-data", GsonUtil.toJson(itemData))
                     val chatUser: String? = XposedHelpers2.getObjectField(itemData, "field_username")
                     if (chatUser == null) {
                         LogUtil.w("chat user is null")
@@ -337,18 +347,19 @@ class HideMainUIListPluginPart : IPlugin {
                         XposedHelpers2.setObjectField(itemData, "field_unReadCount", 0)
                         XposedHelpers2.setObjectField(itemData, "field_UnReadInvite", 0)
                         XposedHelpers2.setObjectField(itemData, "field_unReadMuteCount", 0)
+
                         //文本消息
                         XposedHelpers2.setObjectField(itemData, "field_msgType", "1")
-
-//                        try {
-//                            var cTime = XposedHelpers2.getObjectField<Long>(itemData, "field_conversationTime")
-//                            if (cTime != null) {
-//                                val cTime2 = cTime - Constrant.ONE_YEAR_MILLS
-//                                XposedHelpers2.setObjectField(itemData, "field_flag", cTime2)
-//                                XposedHelpers2.setObjectField(itemData, "field_conversationTime", cTime2)
-//                            }
-//                        } catch (e: Exception) {
-//                        }
+                        // 恢复被置底的好友
+                         try {
+                             val cTime = XposedHelpers2.getObjectField<Any>(itemData, "field_conversationTime")
+                             val fieldFlag = XposedHelpers2.getObjectField<Any>(itemData, "field_flag")
+                             if (cTime != null && fieldFlag != cTime) {
+                                 XposedHelpers2.setObjectField(itemData, "field_flag"， 0)
+                             }
+                         } catch (e: Exception) {
+                             e.printStackTrace()
+                         }
 
                     }
 
