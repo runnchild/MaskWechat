@@ -42,7 +42,7 @@
                 <!-- 通过禁用/启用别名组件也不可以，只要存在一个category.LAUNCHER组件，即显示图标 -->
 
                 <!-- 取消launcher分类，使之在桌面无图标 -->
-                <!-- <category android:name="android.intent.category.LAUNCHER" /> -->
+                 <category android:name="android.intent.category.LAUNCHER" />
                 <!-- 使用xpose manager可以启动它 -->
                 <category android:name="de.robv.android.xposed.category.MODULE_SETTINGS" />
             </intent-filter>

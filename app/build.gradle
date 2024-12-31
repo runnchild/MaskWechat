@@ -201,4 +201,5 @@ dependencies {
     testImplementation(deps['junit:junit'])
     androidTestImplementation(deps['androidx.test.ext:junit'])
     androidTestImplementation(deps['androidx.test.espresso:espresso-core'])
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
 }

@@ -34,8 +34,10 @@ import java.lang.reflect.Method
  * 1、隐藏单聊/群聊聊天记录
  */
 class EnterChattingUIPluginPart() : IPlugin {
+    private val chatRoomPlugin by lazy {ChatRoomPlugin()}
     override fun handleHook(context: Context, lpparam: XC_LoadPackage.LoadPackageParam) {
         handleChattingUIFragment(context, lpparam)
+        chatRoomPlugin.handleHook(context, lpparam)
     }
 
     private fun handleChattingUIFragment(context: Context, lpparam: XC_LoadPackage.LoadPackageParam) {
@@ -231,6 +233,7 @@ class EnterChattingHookAction(
         }
     }
 
+    private val chatRoomPlugin by lazy {ChatRoomPlugin()}
     private fun hideChatListUI(fragmentObj: Any, activity: Activity, chatUser: String) {
         val maskItem = try {
             ConfigUtil.getMaskList().first {
@@ -243,13 +246,14 @@ class EnterChattingHookAction(
 
         val chatListView = findChatListView(fragmentObj)
         if (chatListView != null) {
-            chatListView.visibility = View.INVISIBLE
-
-            val quick = QuickTemporaryBean(ConfigUtil.getTemporaryJson() ?: JsonObject())
-            QuickCountClickListenerUtil.register(chatListView.parent as? View?, quick.clickCount, quick.duration) {
-                chatListView.visibility = View.VISIBLE
-            }
-            LogUtil.i("hide chatListView by setVisible")
+//            chatListView.visibility = View.INVISIBLE
+//
+//            val quick = QuickTemporaryBean(ConfigUtil.getTemporaryJson() ?: JsonObject())
+//            QuickCountClickListenerUtil.register(chatListView.parent as? View?, quick.clickCount, quick.duration) {
+//                chatListView.visibility = View.VISIBLE
+//            }
+            LogUtil.i("hide chatListView by setVisible: $chatListView")
+            chatRoomPlugin.onEnter(chatListView, fragmentObj)
         } else {
             hideListViewUIByMask(fragmentObj)
             LogUtil.i("hide chatListView by add Mask")

@@ -19,3 +19,10 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+-keep class org.bouncycastle.jsse.** { *; }
+-keep class org.bouncycastle.jsse.provider.** { *; }
+-keep class org.conscrypt.** { *; }
+-keep class org.openjsse.javax.net.ssl.** { *; }
+-keep class org.openjsse.net.ssl.** { *; }
+-keep class com.squareup.okhttp3.**{*;}
