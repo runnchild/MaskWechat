@@ -35,6 +35,7 @@ dependencyResolutionManagement {
 //        }
         google()
         mavenCentral()
+        maven { url 'https://repo1.maven.org/maven2/' }
         maven { url 'https://jitpack.io/' }
         maven { url 'https://mirrors.cloud.tencent.com/nexus/repository/maven-public' }
         maven { url 'https://repo.huaweicloud.com/repository/maven' }
@@ -47,4 +48,4 @@ dependencyResolutionManagement {
     }
 }
 rootProject.name = "MaskWechat"
-include ':app'
+include ':app', ":leven_uni_call"

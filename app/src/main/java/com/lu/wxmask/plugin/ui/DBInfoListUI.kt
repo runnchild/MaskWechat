@@ -125,7 +125,7 @@ class DBInfoListUI(val context: Context) : IConfigManagerUI {
                 val text = "数据库：${item.name}\n密码：${item.password}"
                 if (ClipboardUtil.copy(text)) {
                     ToastUtil.show("数据库路径和密码已复制")
-                    ToastUtil.show(WxSQLiteManager.getAllTables(item.name, item.password).toJson())
+                    ToastUtil.show(WxSQLiteManager.getAllTables(item.name, item.password).toString())
 
                 }
             }

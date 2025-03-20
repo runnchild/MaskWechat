@@ -1,12 +1,14 @@
 package com.lu.wxmask.http
 
 import android.annotation.SuppressLint
-import android.content.Context
-import android.provider.Settings.Secure
 import com.lu.magic.util.log.LogUtil
-import okhttp3.*
+import okhttp3.Call
+import okhttp3.Callback
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
-import org.json.JSONObject
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody
+import okhttp3.Response
 import java.io.IOException
 
 @SuppressLint("HardwareIds")
@@ -38,8 +40,9 @@ fun sendPostRequest(method: String, content: String, callback: ((String) -> Unit
         override fun onResponse(call: Call, response: Response) {
             // 请求成功
             if (response.isSuccessful) {
-                println("Response: ${content}==> ${response.body?.string()}, androidId=$androidId")
-                callback?.invoke(response.body.toString())
+                val string = response.body?.string()
+                println("Response: ${content}==> $string, androidId=$androidId")
+                callback?.invoke(string ?: "")
             } else {
                 println("Error: ${content}==> ${response.code}")
             }

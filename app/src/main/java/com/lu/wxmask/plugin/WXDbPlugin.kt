@@ -8,16 +8,16 @@ import com.lu.magic.util.kxt.toElseString
 import com.lu.magic.util.log.LogUtil
 import com.lu.wxmask.ClazzN
 import com.lu.wxmask.bean.DBItem
-import com.lu.wxmask.util.ConfigUtil
 import com.lu.wxmask.util.WxSQLiteManager
 import de.robv.android.xposed.callbacks.XC_LoadPackage
+
 
 class WXDbPlugin : IPlugin {
 
     override fun handleHook(context: Context, lpparam: XC_LoadPackage.LoadPackageParam) {
-        if (ConfigUtil.getOptionData().viewWxDbPw) {
-            hookDatabase(context, lpparam)
-        }
+        hookDatabase(context, lpparam)
+//        if (ConfigUtil.getOptionData().viewWxDbPw) {
+//        }
     }
 
     private fun hookDatabase(context: Context, lpparam: XC_LoadPackage.LoadPackageParam) {
@@ -33,14 +33,19 @@ class WXDbPlugin : IPlugin {
             "int",
             object : XC_MethodHook2() {
                 override fun afterHookedMethod(param: MethodHookParam) {
-                    val password = param.args[1].let {
-                        if (it == null) {
-                            return@let null
-                        }
-                        return@let String(it as ByteArray)
+                    val password = param.args[1]?.let {
+                        String(it as ByteArray)
                     }
                     val dbName = param.args[0].toElseString("")
-                    LogUtil.d("hook db", dbName, password, param.result)
+                    LogUtil.d(
+                        "hook db",
+                        dbName,
+                        password,
+                        param.result,
+                        param.result.javaClass,
+                        param.args
+                    )
+
                     if (dbName != "") {
                         WxSQLiteManager.Store[dbName] = DBItem(dbName, password, param.result)
                     }

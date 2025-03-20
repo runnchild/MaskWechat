@@ -10,4 +10,22 @@
         android:id="@+id/mainContainer"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
+
+    <Button
+        android:layout_width="wrap_content"
+        android:text="click"
+        android:id="@+id/click"
+        android:layout_height="wrap_content" />
+    <Button
+        android:layout_marginTop="50dp"
+        android:layout_width="wrap_content"
+        android:text="send"
+        android:id="@+id/send"
+        android:layout_height="wrap_content" />
+    <Button
+        android:layout_marginTop="100dp"
+        android:layout_width="wrap_content"
+        android:text="stop"
+        android:id="@+id/stop"
+        android:layout_height="wrap_content" />
 </FrameLayout>

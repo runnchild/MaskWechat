@@ -1,5 +1,7 @@
 package com.lu.wxmask;
 
+import static com.lu.wxmask.http.MidnightWorkerKt.scheduleZeroOClockTask;
+
 import android.app.Application;
 import android.app.Instrumentation;
 import android.content.Context;
@@ -16,8 +18,8 @@ import com.lu.magic.util.log.LogUtil;
 import com.lu.magic.util.log.SimpleLogger;
 import com.lu.wxmask.plugin.CommonPlugin;
 import com.lu.wxmask.plugin.WXConfigPlugin;
-import com.lu.wxmask.plugin.WXMaskPlugin;
 import com.lu.wxmask.plugin.WXDbPlugin;
+import com.lu.wxmask.plugin.WXMaskPlugin;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -192,6 +194,20 @@ public class MainHook implements IXposedHookLoadPackage, IXposedHookZygoteInit, 
         LogUtil.i("start init Plugin");
         hasInit = true;
         AppUtil.attachContext(context);
+//
+//        CallModule callModule = new CallModule();
+//        callModule.setContext(context);
+//        callModule.getAllCalls(new UniJSCallback() {
+//            @Override
+//            public void invoke(Object data) {
+//                LogUtil.i("getAllCalls: " + data);
+//            }
+//
+//            @Override
+//            public void invokeAndKeepAlive(Object data) {
+//
+//            }
+//        });
 
         if (BuildConfig.APPLICATION_ID.equals(lpparam.packageName)) {
             initSelfPlugins(context, lpparam);
@@ -205,6 +221,7 @@ public class MainHook implements IXposedHookLoadPackage, IXposedHookZygoteInit, 
             }
         }
         LogUtil.i("init plugin finish");
+        scheduleZeroOClockTask(context);
     }
 
     private void initSelfPlugins(Context context, XC_LoadPackage.LoadPackageParam lpparam) {

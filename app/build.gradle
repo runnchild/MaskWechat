@@ -67,8 +67,8 @@ android {
         applicationId "com.lu.wxmask"
         minSdk 24
         targetSdk 35
-        versionCode 1004
-        versionName "2.3-1"
+        versionCode 1069
+        versionName "2.3-2"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
 
@@ -97,6 +97,11 @@ android {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             signingConfig signingConfigs.alpha
+            applicationIdSuffix ".debug"
+        }
+        profile {
+            initWith debug
+            applicationIdSuffix ""
         }
         release {
             debuggable false
@@ -192,7 +197,7 @@ dependencies {
 //    implementation 'androidx.core:core:1.3.1'
 
     compileOnly(deps['de.robv.android.xposed:api'])
-    compileOnly('com.tencent.wcdb:wcdb-android:1.1-19')
+//    compileOnly('com.tencent.wcdb:wcdb-android:1.1-19')
     // https://mvnrepository.com/artifact/com.tencent.wcdb/wcdb-android
 
     // https://mvnrepository.com/artifact/org.json/json
@@ -202,4 +207,6 @@ dependencies {
     androidTestImplementation(deps['androidx.test.ext:junit'])
     androidTestImplementation(deps['androidx.test.espresso:espresso-core'])
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
+    implementation "androidx.work:work-runtime-ktx:2.8.1"
 }

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <application>
+        <activity
+            android:name=".ui.MainActivity"
+            android:autoRemoveFromRecents="true"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:noHistory="true"
+            tools:replace="android:name"
+            >
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <!-- 在Android-11及以上，不能够通过调用 pm.setComponentEnabledSetting 禁用组件的方式来实现动态显示/隐藏图标 -->
+                <!-- 禁用后，图标将仍然存在，但是点击应用会进入系统的应用设置页 -->
+                <!-- 通过禁用/启用别名组件也不可以，只要存在一个category.LAUNCHER组件，即显示图标 -->
+
+                <!-- 取消launcher分类，使之在桌面无图标 -->
+                <category android:name="android.intent.category.LAUNCHER" />
+                <!-- 使用xpose manager可以启动它 -->
+                <category android:name="de.robv.android.xposed.category.MODULE_SETTINGS" />
+            </intent-filter>
+        </activity>
+    </application>
+
+</manifest>
