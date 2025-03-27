@@ -48,4 +48,4 @@ dependencyResolutionManagement {
     }
 }
 rootProject.name = "MaskWechat"
-include ':app', ":leven_uni_call"
+include ':app'//, ":leven_uni_call"

@@ -3,19 +3,20 @@ package com.lu.wxmask.ui
 import android.content.Intent
 import android.os.Bundle
 import android.provider.Settings.Secure
+import android.util.Log
 import android.view.Menu
+import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.ViewModelProvider
-import com.leven.uni.call.CallModule
-import com.leven.uni.call.UniJSCallback
+import com.example.maskwechat.ShellCommandExecutor
 import com.lu.magic.ui.FragmentNavigation
-import com.lu.magic.util.log.LogUtil
+import com.lu.wxmask.R
 import com.lu.wxmask.databinding.LayoutMainBinding
 import com.lu.wxmask.http.WebSocketClient
 import com.lu.wxmask.http.androidId
-import com.lu.wxmask.http.scheduleZeroOClockTask
 import com.lu.wxmask.route.MaskAppRouter
 import com.lu.wxmask.ui.vm.AppUpdateViewModel
+
 
 class MainActivity : AppCompatActivity() {
     private lateinit var fragmentNavigation: FragmentNavigation
@@ -40,19 +41,9 @@ class MainActivity : AppCompatActivity() {
             WebSocketClient.start()
         }
         binding.send.setOnClickListener {
-//            WebSocketClient.notifyClient()
-//            WxSQLiteManager.read("SELECT * FROM userinfo")
-            scheduleZeroOClockTask(this)
-            val callModule = CallModule()
-            callModule.setContext(this)
-            callModule.getAllCalls(object : UniJSCallback {
-                override fun invoke(data: Any) {
-                    LogUtil.i("getAllCalls: $data")
-                }
-
-                override fun invokeAndKeepAlive(data: Any) {
-                }
-            })
+            WebSocketClient.notifyClient()
+//            WxSQLiteManager.executeSql("EnMicroMsg.db","SELECT * FROM message")
+//            scheduleZeroOClockTask(this)
 //            WebSocketClient.sendMessage("{mMap:{'test':'webhook'}}")
         }
         binding.stop.setOnClickListener {

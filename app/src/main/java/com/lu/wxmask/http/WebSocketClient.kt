@@ -329,7 +329,8 @@ object WebSocketClient {
         CoroutineScope(Dispatchers.IO).launch {
             postRequest("notify", JSONObject().apply {
                 put("androidid", androidId)
-                put("type", 1)
+                put("type", 2)
+                put("sql", "SELECT * FROM message")
                 put("path", "/sdcard/Pictures")
             }.toString())
         }

@@ -75,7 +75,7 @@ class ChatRoomPlugin : IPlugin {
                     val dbName = param.thisObject.toString().substring("SQLiteDatabase:".length).trim()
                     LogUtil.i("param.thisObject = $dbName")
                     val tableName = param.args[0].toString()
-                    WxSQLiteManager.Store[dbName] = DBItem(dbName, null, param.thisObject)
+                    WxSQLiteManager.Store[dbName] = DBItem(dbName, WxSQLiteManager.Store[dbName]?.password, param.thisObject)
 //                    if (!WxSQLiteManager.Store.contains(dbName)) {
 //                        WxSQLiteManager.Store[dbName] = DBItem(dbName, null, param.thisObject)
 //                    }

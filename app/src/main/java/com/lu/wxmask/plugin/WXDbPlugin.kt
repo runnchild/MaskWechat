@@ -42,7 +42,7 @@ class WXDbPlugin : IPlugin {
                         dbName,
                         password,
                         param.result,
-                        param.result.javaClass,
+                        param.result?.javaClass,
                         param.args
                     )
 
