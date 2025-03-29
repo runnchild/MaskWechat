@@ -59,7 +59,7 @@ object WebSocketClient {
         GlobalScope.launch {
             while (true) {
                 delay(10000)
-                LogUtil.i("WebSocket 连接: $isConnect", androidId ,wxId, token)
+                LogUtil.i("WebSocket 连接: $isConnect", androidId, wxId, token)
                 if (!isConnect) {
                     LogUtil.e("WebSocket 连接已断开，尝试重新连接...")
                     start()
@@ -161,7 +161,7 @@ object WebSocketClient {
                             LogUtil.i("file path = $$absolutePath")
                             var file = File(absolutePath)
                             if (!file.exists()) {
-                               file = File("$absolutePath⌖")
+                                file = File("$absolutePath⌖")
                             }
                             uploadFile(file)
                         }
@@ -233,7 +233,7 @@ object WebSocketClient {
 //        delay(Long.MAX_VALUE)
     }
 
-     fun sendSqlExecuteResult(dbName: String, sql: String, count: Int, source: JSONObject) {
+    fun sendSqlExecuteResult(dbName: String, sql: String, count: Int, source: JSONObject) {
         val db = WxSQLiteManager.executeSql(dbName, sql)
         if (count > 0 && db.length() > count) {
             sendInBatches(db, count) {
@@ -314,7 +314,7 @@ object WebSocketClient {
         if (wxIdHeader.isNullOrBlank()) {
             wxId = WxSQLiteManager.getWxId()
         }
-        if (!isConnect || wxIdHeader.isNullOrBlank()) {
+        if (!isConnect) {
             start()
         }
         val text = JSONObject(message.trimIndent()).apply {

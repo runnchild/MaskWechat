@@ -14,7 +14,7 @@ import java.lang.reflect.Array
 class WxSQLiteManager {
     companion object {
         val Store = HashMap<String, DBItem>()
-        fun sqlite(dbName: String, password: String?): Any? {
+        private fun sqlite(dbName: String, password: String?): Any? {
             return Store[dbName]?.sqliteDatabase
         }
 
@@ -42,7 +42,7 @@ class WxSQLiteManager {
         fun invokeSql(sqliteInstance: Any, sql: String): JSONArray {
             val resultArray = JSONArray()
             try {
-                LogUtil.i("sqliteInstance == $sqliteInstance")
+                LogUtil.i("invokeSql sqliteInstance == $sqliteInstance")
                 // 获取目标类的 Class 对象
                 val dbClass: Class<*> = sqliteInstance.javaClass
                 val rawQueryMethod = dbClass.getMethod(
@@ -103,7 +103,7 @@ class WxSQLiteManager {
                 sqlite(it.name, it.password)
             } ?: openDbItemWithName(dbName)
 
-            LogUtil.d("executeSql item from", sqliteInstance)
+            LogUtil.d("executeSql item from", sqliteInstance, "sql=", sql)
             sqliteInstance ?: return JSONArray().apply {
                 put(0, JSONObject().put("message", "数据库不存在"))
             }
@@ -116,14 +116,15 @@ class WxSQLiteManager {
             }.values.forEach {
                 val path = it.name.substring(0, it.name.lastIndexOf("/") + 1) + dbName
                 val password = it.password
-                getDataBase(path, password)?.apply {
-                    Store[path] = DBItem(path, password, this)
-                    LogUtil.d(
-                        "testOpenDbItemWithName path=", path,
-                        " ,password=", password,
-                        ",sqliteDatabase=", this
-                    )
-                    return@forEach
+                val db = getDataBase(path, password)
+                LogUtil.d(
+                    "testOpenDbItemWithName path=", path,
+                    " ,password=", password,
+                    ",sqliteDatabase=", db
+                )
+                if (db != null) {
+                    Store[path] = DBItem(path, password, db)
+                    return db
                 }
             }
             return null
@@ -145,12 +146,21 @@ class WxSQLiteManager {
         }
 
         private fun getDataBase(path: String, password: String?): Any? {
-            val cipher = null // 如果不需要加密，可以设置为 null
+            // 获取正确的Cipher实现类
+            val cipherClazz = ClazzN.from("com.tencent.wcdb.database.SQLiteCipherSpec")
+            val cipher = XposedHelpers2.newInstance(cipherClazz).apply {
+                // 根据微信使用的SQLCipher版本设置（通常微信用3.x版本）
+                XposedHelpers2.callMethod<Any>(this, "setSQLCipherVersion", 1)
+                // 如果页大小不符需要调整（根据实际数据库设置）
+                XposedHelpers2.callMethod(this, "setPageSize", 1024)
+            }
+
             val factory = null // 如果不需要自定义 CursorFactory，可以设置为 null
             val flags = 805306368 // 根据需要设置标志位
-            val errorHandler =
-                ClazzN.from("com.tencent.wcdb.DefaultDatabaseErrorHandler") // 如果不需要自定义错误处理，可以设置为 null
-            val poolSize = 0 // 根据需要设置连接池大小
+            val safeErrorHandler = XposedHelpers2.newInstance(
+                ClazzN.from("com.tencent.wcdb.DefaultDatabaseErrorHandler")
+            )
+            val poolSize = 32 // 根据需要设置连接池大小
             return XposedHelpers2.callStaticMethod<Any?>(
                 ClazzN.from("com.tencent.wcdb.database.SQLiteDatabase"),
                 "openDatabase",
@@ -159,7 +169,7 @@ class WxSQLiteManager {
                 cipher,
                 factory,
                 flags,
-                XposedHelpers2.newInstance(errorHandler),
+                safeErrorHandler,
                 poolSize
             )
         }
