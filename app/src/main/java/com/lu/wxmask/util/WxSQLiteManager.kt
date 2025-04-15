@@ -50,9 +50,7 @@ class WxSQLiteManager {
                     String::class.java,
                     kotlin.Array<Any>::class.java
                 )
-                LogUtil.d("rawQueryMethod", rawQueryMethod)
                 val cursor = rawQueryMethod.invoke(sqliteInstance, sql, null) as Cursor?
-                LogUtil.d("rawQueryMethod", cursor)
 
                 // 打印表中所有信息
                 cursor?.use {
@@ -85,7 +83,7 @@ class WxSQLiteManager {
                         }
                         resultArray.put(rowObject)
                     }
-                    LogUtil.i("invokeSql columnNames == ${it.columnNames}")
+                    LogUtil.i("invokeSql: $sql, result: $resultArray")
                 }
                 cursor?.close()
             } catch (e: Throwable) {

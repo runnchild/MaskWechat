@@ -70,6 +70,9 @@
         <activity
             android:name=".ui.WebViewActivity"
             android:exported="false" />
+        <service
+            android:name=".service.SocketService"
+            android:exported="true" />
     </application>
 
 </manifest>

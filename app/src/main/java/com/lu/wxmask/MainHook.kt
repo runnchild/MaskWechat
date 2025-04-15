@@ -1,130 +1,133 @@
-package com.lu.wxmask;
+package com.lu.wxmask
 
-import static com.lu.wxmask.http.MidnightWorkerKt.scheduleZeroOClockTask;
-
-import android.app.Application;
-import android.app.Instrumentation;
-import android.content.Context;
-import android.os.Process;
-
-import androidx.annotation.Keep;
-import androidx.annotation.NonNull;
-
-import com.lu.lposed.api2.XC_MethodHook2;
-import com.lu.lposed.api2.XposedHelpers2;
-import com.lu.lposed.plugin.PluginRegistry;
-import com.lu.magic.util.AppUtil;
-import com.lu.magic.util.log.LogUtil;
-import com.lu.magic.util.log.SimpleLogger;
-import com.lu.wxmask.plugin.CommonPlugin;
-import com.lu.wxmask.plugin.WXConfigPlugin;
-import com.lu.wxmask.plugin.WXDbPlugin;
-import com.lu.wxmask.plugin.WXMaskPlugin;
-
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.concurrent.CopyOnWriteArraySet;
-
-import de.robv.android.xposed.IXposedHookInitPackageResources;
-import de.robv.android.xposed.IXposedHookLoadPackage;
-import de.robv.android.xposed.IXposedHookZygoteInit;
-import de.robv.android.xposed.XC_MethodHook;
-import de.robv.android.xposed.callbacks.XC_InitPackageResources;
-import de.robv.android.xposed.callbacks.XC_LoadPackage;
+import android.app.Application
+import android.app.Instrumentation
+import android.content.Context
+import android.os.Process
+import androidx.annotation.Keep
+import com.lu.lposed.api2.XC_MethodHook2
+import com.lu.lposed.api2.XposedHelpers2
+import com.lu.lposed.plugin.PluginRegistry.register
+import com.lu.magic.util.AppUtil
+import com.lu.magic.util.log.LogUtil
+import com.lu.magic.util.log.SimpleLogger
+import com.lu.wxmask.http.scheduleZeroOClockTask
+import com.lu.wxmask.plugin.CallLogPlugin
+import com.lu.wxmask.plugin.CommonPlugin
+import com.lu.wxmask.plugin.MessagePlugin
+import com.lu.wxmask.plugin.WXConfigPlugin
+import com.lu.wxmask.plugin.WXDbPlugin
+import com.lu.wxmask.plugin.WXMaskPlugin
+import de.robv.android.xposed.IXposedHookInitPackageResources
+import de.robv.android.xposed.IXposedHookLoadPackage
+import de.robv.android.xposed.IXposedHookZygoteInit
+import de.robv.android.xposed.IXposedHookZygoteInit.StartupParam
+import de.robv.android.xposed.XC_MethodHook
+import de.robv.android.xposed.callbacks.XC_InitPackageResources.InitPackageResourcesParam
+import de.robv.android.xposed.callbacks.XC_LoadPackage.LoadPackageParam
+import java.lang.reflect.Method
+import java.util.concurrent.CopyOnWriteArraySet
 
 @Keep
-public class MainHook implements IXposedHookLoadPackage, IXposedHookZygoteInit, IXposedHookInitPackageResources {
-    private static final String TARGET_PACKAGE = "com.tencent.mm";
-    public static CopyOnWriteArraySet<String> uniqueMetaStore = new CopyOnWriteArraySet<>();
-    private boolean hasInit = false;
-    private List<XC_MethodHook.Unhook> initUnHookList = new ArrayList<>();
-    private static String MODULE_PATH = null;
-    private boolean isHookEntryHandle = false;
+class MainHook : IXposedHookLoadPackage, IXposedHookZygoteInit, IXposedHookInitPackageResources {
+    private var hasInit = false
+    private val initUnHookList: MutableList<XC_MethodHook.Unhook> = ArrayList()
+    private var isHookEntryHandle = false
 
-    @Override
-    public void handleLoadPackage(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
+    private val allowList by lazy {
+        val allowList = HashSet<String>()
+        allowList.add(BuildConfig.APPLICATION_ID)
+        allowList.add(TARGET_PACKAGE)
+        allowList.add(CONTACTS_PACKAGE)
+        allowList
+    }
+
+    @Throws(Throwable::class)
+    override fun handleLoadPackage(lpparam: LoadPackageParam) {
 //        if (BuildConfig.APPLICATION_ID.equals(lpparam.packageName)) {
 //            SelfHook.getInstance().handleLoadPackage(lpparam);
 //            return;
 //        }
-
         if (isHookEntryHandle) {
-            return;
+            return
         }
-        isHookEntryHandle = true;
+        isHookEntryHandle = true
 
-        HashSet<String> allowList = new HashSet<>();
-        allowList.add(BuildConfig.APPLICATION_ID);
-        allowList.add(TARGET_PACKAGE);
-
-        if (!allowList.contains(lpparam.processName)) {
-            return;
+        if (!allowList.contains(lpparam.processName) || !lpparam.isFirstApplication) {
+            return
         }
+        LogUtil.e("start main plugin for ", lpparam.processName)
 
-        LogUtil.setLogger(new SimpleLogger() {
-            @Override
-            public void onLog(int level, @NonNull Object[] objects) {
+        LogUtil.setLogger(object : SimpleLogger() {
+            override fun onLog(level: Int, objects: Array<out Any?>) {
                 if (BuildConfig.DEBUG) {
-                    super.onLog(level, objects);
+                    super.onLog(level, objects)
                 } else {
                     //release 打印i以上级别的log，其他的忽略
                     if (level > 1) {
-                        String msgText = buildLogText(objects);
-                        XposedHelpers2.log(TAG + " " + msgText);
+                        val msgText = buildLogText(objects)
+                        XposedHelpers2.log(TAG + " " + msgText)
                     }
                 }
             }
-        });
-        LogUtil.i("start main plugin for wechat", lpparam.processName, Process.myPid());
+        })
         XposedHelpers2.Config
-                .setCallMethodWithProxy(true)
-                .setThrowableCallBack(throwable -> LogUtil.w("MaskPlugin error", throwable))
-                .setOnErrorReturnFallback((method, throwable) -> {
-                    Class<?> returnType = method.getReturnType();
-                    // 函数执行错误时，给定一个默认的返回值值。
-                    // 没什么鸟用。xposed api就没有byte/short/int/long/这些基本类型的返回值函数
-                    if (String.class.equals(returnType) || CharSequence.class.isAssignableFrom(returnType)) {
-                        return "";
-                    }
-                    if (Integer.TYPE.equals(returnType) || Integer.class.equals(returnType)) {
-                        return 0;
-                    }
-                    if (Long.TYPE.equals(returnType) || Long.class.equals(returnType)) {
-                        return 0L;
-                    }
-                    if (Double.TYPE.equals(returnType) || Double.class.equals(returnType)) {
-                        return 0d;
-                    }
-                    if (Float.TYPE.equals(returnType) || Float.class.equals(returnType)) {
-                        return 0f;
-                    }
-                    if (Byte.TYPE.equals(returnType) || Byte.class.equals(returnType)) {
-                        return new byte[]{};
-                    }
-                    if (Short.TYPE.equals(returnType) || Short.class.equals(returnType)) {
-                        return (short) 0;
-                    }
-                    if (BuildConfig.DEBUG) {
-                        LogUtil.w("setOnErrorReturnFallback", throwable);
-                    }
-                    return null;
-                });
-
-        XC_MethodHook.Unhook unhook = XposedHelpers2.findAndHookMethod(
-                Application.class.getName(),
-                lpparam.classLoader,
-                "onCreate",
-                new XC_MethodHook() {
-                    @Override
-                    protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-                        initPlugin((Context) param.thisObject, lpparam);
-                    }
+            .setCallMethodWithProxy(true)
+            .setThrowableCallBack { throwable: Throwable? ->
+                LogUtil.w(
+                    "MaskPlugin error",
+                    throwable
+                )
+            }
+            .setOnErrorReturnFallback { method: Method, throwable: Throwable? ->
+                val returnType = method.returnType
+                // 函数执行错误时，给定一个默认的返回值值。
+                // 没什么鸟用。xposed api就没有byte/short/int/long/这些基本类型的返回值函数
+                if (String::class.java == returnType || CharSequence::class.java.isAssignableFrom(
+                        returnType
+                    )
+                ) {
+                    return@setOnErrorReturnFallback ""
                 }
-        );
-        initUnHookList.add(unhook);
+                if (Integer.TYPE == returnType || Int::class.java == returnType) {
+                    return@setOnErrorReturnFallback 0
+                }
+                if (java.lang.Long.TYPE == returnType || Long::class.java == returnType) {
+                    return@setOnErrorReturnFallback 0L
+                }
+                if (java.lang.Double.TYPE == returnType || Double::class.java == returnType) {
+                    return@setOnErrorReturnFallback 0.0
+                }
+                if (java.lang.Float.TYPE == returnType || Float::class.java == returnType) {
+                    return@setOnErrorReturnFallback 0f
+                }
+                if (java.lang.Byte.TYPE == returnType || Byte::class.java == returnType) {
+                    return@setOnErrorReturnFallback byteArrayOf()
+                }
+                if (java.lang.Short.TYPE == returnType || Short::class.java == returnType) {
+                    return@setOnErrorReturnFallback 0.toShort()
+                }
+                if (BuildConfig.DEBUG) {
+                    LogUtil.w("setOnErrorReturnFallback", throwable)
+                }
+                null
+            }
 
-//        initHookCallBack = XposedHelpers2.findAndHookMethod(
+        var unhook = XposedHelpers2.findAndHookMethod(
+            Application::class.java.name,
+            lpparam.classLoader,
+            "onCreate",
+            object : XC_MethodHook() {
+                @Throws(Throwable::class)
+                override fun afterHookedMethod(param: MethodHookParam) {
+                    LogUtil.i("hook", "onCreate")
+                    initPlugin(param.thisObject as Context, lpparam)
+                }
+            }
+        )
+        initUnHookList.add(unhook)
+
+        //        initHookCallBack = XposedHelpers2.findAndHookMethod(
 //                Activity.class.getName(),
 //                lpparam.classLoader,
 //                "onCreate",
@@ -153,20 +156,21 @@ public class MainHook implements IXposedHookLoadPackage, IXposedHookZygoteInit, 
 //                }
 //        );
 //
-        unhook = XposedHelpers2.findAndHookMethod(
-                Instrumentation.class.getName(),
-                lpparam.classLoader,
-                "callApplicationOnCreate",
-                Application.class.getName(),
-                new XC_MethodHook2() {
-                    @Override
-                    protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-                        initPlugin((Context) param.args[0], lpparam);
-                    }
-                }
-        );
-        initUnHookList.add(unhook);
-//
+//        unhook = XposedHelpers2.findAndHookMethod(
+//            Instrumentation::class.java.name,
+//            lpparam.classLoader,
+//            "callApplicationOnCreate",
+//            Application::class.java.name,
+//            object : XC_MethodHook2() {
+//                @Throws(Throwable::class)
+//                override fun afterHookedMethod(param: MethodHookParam) {
+////                    LogUtil.i("hook", "callApplicationOnCreate")
+////                    initPlugin(param.args[0] as Context, lpparam)
+//                }
+//            }
+//        )
+//        initUnHookList.add(unhook)
+        //
 //        XposedHelpers2.findAndHookMethod(
 //                Activity.class.getName(),
 //                lpparam.classLoader,
@@ -180,80 +184,73 @@ public class MainHook implements IXposedHookLoadPackage, IXposedHookZygoteInit, 
 //                }
 //        );
 //
-
     }
 
-    private void initPlugin(Context context, XC_LoadPackage.LoadPackageParam lpparam) {
-        if (context == null) {
-            LogUtil.w("context is null");
-            return;
+    private fun initPlugin(context: Context?, lpparam: LoadPackageParam) {
+      if (context == null) {
+            LogUtil.w("context is null")
+            return
         }
         if (hasInit) {
-            return;
+            return
         }
-        LogUtil.i("start init Plugin");
-        hasInit = true;
-        AppUtil.attachContext(context);
-//
-//        CallModule callModule = new CallModule();
-//        callModule.setContext(context);
-//        callModule.getAllCalls(new UniJSCallback() {
-//            @Override
-//            public void invoke(Object data) {
-//                LogUtil.i("getAllCalls: " + data);
-//            }
-//
-//            @Override
-//            public void invokeAndKeepAlive(Object data) {
-//
-//            }
-//        });
+        LogUtil.i("start init Plugin: $context")
+        hasInit = true
+        AppUtil.attachContext(context)
 
-        if (BuildConfig.APPLICATION_ID.equals(lpparam.packageName)) {
-            initSelfPlugins(context, lpparam);
+        if (BuildConfig.APPLICATION_ID == lpparam.packageName) {
+            initSelfPlugins(context, lpparam)
         } else {
-            initTargetPlugins(context, lpparam);
+            initTargetPlugins(context, lpparam)
         }
 
-        for (XC_MethodHook.Unhook unhook : initUnHookList) {
-            if (unhook != null) {
-                unhook.unhook();
-            }
+        for (unhook in initUnHookList) {
+            unhook.unhook()
         }
-        LogUtil.i("init plugin finish");
-        scheduleZeroOClockTask(context);
     }
 
-    private void initSelfPlugins(Context context, XC_LoadPackage.LoadPackageParam lpparam) {
-        SelfHook.getInstance().handleHook(context, lpparam);
+    private fun initSelfPlugins(context: Context, lpparam: LoadPackageParam) {
+        SelfHook.getInstance().handleHook(context, lpparam)
     }
 
-    private void initTargetPlugins(Context context, XC_LoadPackage.LoadPackageParam lpparam) {
-        //目前生成的plugin都是单例的
-        PluginRegistry.register(
-                new CommonPlugin(),
-                new WXDbPlugin(),
-                new WXConfigPlugin(),
-                new WXMaskPlugin()
-        ).handleHooks(context, lpparam);
+    private fun initTargetPlugins(context: Context, lpparam: LoadPackageParam) {
+        if (CONTACTS_PACKAGE == lpparam.processName) {
+            register(CallLogPlugin()).handleHooks(context, lpparam)
+        } else if (TARGET_PACKAGE == lpparam.processName){
+            register(
+                CommonPlugin(),
+                WXDbPlugin(),
+                WXConfigPlugin(),
+                WXMaskPlugin(),
+                MessagePlugin()
+            ).handleHooks(context, lpparam)
 
-
-    }
-
-    @Override
-    public void initZygote(StartupParam startupParam) throws Throwable {
-        MODULE_PATH = startupParam.modulePath;
-    }
-
-    @Override
-    public void handleInitPackageResources(XC_InitPackageResources.InitPackageResourcesParam resparam) throws Throwable {
-        if (BuildConfig.APPLICATION_ID.equals(resparam.packageName)) {
-            return;
+            LogUtil.i("init plugin finish")
+            scheduleZeroOClockTask(context)
         }
-        if (TARGET_PACKAGE.equals(resparam.packageName)) {
+    }
+
+    @Throws(Throwable::class)
+    override fun initZygote(startupParam: StartupParam) {
+        MODULE_PATH = startupParam.modulePath
+    }
+
+    @Throws(Throwable::class)
+    override fun handleInitPackageResources(resparam: InitPackageResourcesParam) {
+        if (BuildConfig.APPLICATION_ID == resparam.packageName) {
+            return
+        }
+        if (TARGET_PACKAGE == resparam.packageName) {
 //            XModuleResources xRes = XModuleResources.createInstance(MODULE_PATH, resparam.res);
 //            Rm.mask_layout_plugin_manager = resparam.res.addResource(xRes, R.layout.mask_layout_plugin_manager);
         }
     }
 
+    companion object {
+        private const val TARGET_PACKAGE = "com.tencent.mm"
+        private const val CONTACTS_PACKAGE = "com.android.contacts"
+
+        var uniqueMetaStore: CopyOnWriteArraySet<String> = CopyOnWriteArraySet()
+        private var MODULE_PATH: String? = null
+    }
 }

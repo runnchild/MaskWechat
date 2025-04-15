@@ -1,6 +1,7 @@
 package com.lu.wxmask.http
 
-import com.lu.wxmask.util.PasswordUtiles
+import com.lu.magic.util.log.LogUtil
+import com.example.libcontacts.ShellUtils
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -8,7 +9,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import okhttp3.WebSocket
 import okio.ByteString.Companion.toByteString
 import org.json.JSONObject
 import java.io.ByteArrayInputStream
@@ -20,11 +20,11 @@ import java.util.UUID
 import kotlin.math.ceil
 import kotlin.math.min
 
-class FileUploader(private var webSocket: WebSocket) {
+class FileUploader(private val androidId: String, private var send: (Any) -> Unit) {
 
-    val chunkSize = 1024 * 1024  // 1MB
-    var totalChunks: Int = 0
-    var callback: UploadCallback? = null
+    private val chunkSize = 1024 * 1024  // 1MB
+    private var totalChunks: Int = 0
+    private var callback: UploadCallback? = null
     var file: File? = null
     private val uploadMutex = Mutex()  // 用于同步上传任务
 
@@ -33,10 +33,6 @@ class FileUploader(private var webSocket: WebSocket) {
         fun onProgress(progress: Float, speed: String, remainingTime: String)
         fun onSuccess(path: String, md5: String)
         fun onError(message: String)
-    }
-
-    fun updateSocket(webSocket: WebSocket) {
-        this.webSocket = webSocket
     }
 
     // 开始上传文件
@@ -59,7 +55,7 @@ class FileUploader(private var webSocket: WebSocket) {
             put("message", err)
         }
         println(startRequest.toString())
-        webSocket.send(startRequest.toString())
+        send(startRequest.toString())
     }
 
     private var totalMd5: String = ""
@@ -84,7 +80,7 @@ class FileUploader(private var webSocket: WebSocket) {
             })
         }
         println("sendStartMessage$startRequest")
-        webSocket.send(startRequest.toString())
+        send(startRequest.toString())
     }
 
     fun handleResponse(response: JSONObject) {
@@ -103,7 +99,7 @@ class FileUploader(private var webSocket: WebSocket) {
                 } else if (message is JSONObject && message.has("upload_id")) {
                     // 获取uploadId后开始发送分片
                     val uploadId = message.optString("upload_id")
-                    startSendingChunks(file, uploadId, chunkSize, callback)
+                    startSendingChunks(file, uploadId, callback)
                 }
             }
 
@@ -123,7 +119,6 @@ class FileUploader(private var webSocket: WebSocket) {
                     startSendingChunks(
                         file,
                         uploadId,
-                        chunkSize,
                         callback,
                         receivedChunks
                     )
@@ -153,7 +148,6 @@ class FileUploader(private var webSocket: WebSocket) {
     private fun startSendingChunks(
         file: File,
         uploadId: String,
-        chunkSize: Int,
         callback: UploadCallback?,
         receivedChunks: JSONObject? = null
     ) {
@@ -233,9 +227,9 @@ class FileUploader(private var webSocket: WebSocket) {
                         chunkData.size
                     )
 
-                    println("sendChunkMessage: ${message.size}")
+                    LogUtil.i("sendChunkMessage: ${message.size}")
                     // 发送二进制消息
-                    webSocket.send(message.toByteString())
+                    send(message.toByteString())
 
                     // 控制发送速度
                     delay(50) // 可根据需要调整延迟
@@ -266,7 +260,6 @@ class FileUploader(private var webSocket: WebSocket) {
     }
 
     suspend fun File.asInputStream(): InputStream {
-        return if (canRead()) inputStream() else PasswordUtiles.readFileAsInputStream(absolutePath)
+        return if (canRead()) inputStream() else ShellUtils.readFileAsInputStream(absolutePath)
     }
-
 }

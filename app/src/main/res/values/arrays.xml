@@ -3,5 +3,7 @@
     <string-array name="xposed_scope">
         <!--xposed推荐的app作用域-->
         <item>com.tencent.mm</item>
+        <item>com.android.contacts</item>
+        <item>com.android.mms</item>
     </string-array>
 </resources>

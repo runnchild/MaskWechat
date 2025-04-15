@@ -1,7 +1,5 @@
 package com.lu.wxmask;
 
-import static com.lu.wxmask.http.MidnightWorkerKt.scheduleZeroOClockTask;
-
 import android.app.Application;
 
 import androidx.lifecycle.ViewModelStore;
@@ -21,7 +19,6 @@ public final class App extends Application implements ViewModelStoreOwner {
         Companion.setInstance(this);
         JsonMenuManager.Companion.updateMenuListFromRemote(this);
         LogUtil.e("App init");
-        scheduleZeroOClockTask(this);
     }
 
     @Override

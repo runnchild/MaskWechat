@@ -8,7 +8,9 @@ import androidx.work.PeriodicWorkRequest
 import androidx.work.WorkManager
 import androidx.work.Worker
 import androidx.work.WorkerParameters
+import com.lu.lposed.plugin.PluginProviders
 import com.lu.magic.util.log.LogUtil
+import com.lu.wxmask.plugin.MessagePlugin
 import org.json.JSONObject
 import java.util.Calendar
 import java.util.concurrent.TimeUnit
@@ -23,7 +25,7 @@ class MidnightWorker(context: Context, params: WorkerParameters) : Worker(contex
             """.trimIndent()
 
         val dbName = "EnMicroMsg.db"
-        WebSocketClient.sendSqlExecuteResult(dbName, sql, -1, JSONObject().apply {
+        PluginProviders.from(MessagePlugin::class.java).sendSqlExecuteResult(dbName, sql, -1, JSONObject().apply {
             put("type", "msgId")
         })
         return Result.success()
@@ -57,6 +59,7 @@ fun scheduleZeroOClockTask(context: Context) {
     ).setInitialDelay(delay, TimeUnit.MILLISECONDS)
         .build()
 
+    WorkManager.getInstance(context).cancelAllWork()
     WorkManager.getInstance(context).enqueueUniquePeriodicWork(
         "MidnightWork",
         ExistingPeriodicWorkPolicy.UPDATE,

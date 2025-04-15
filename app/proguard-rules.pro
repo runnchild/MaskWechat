@@ -26,3 +26,7 @@
 -keep class org.openjsse.javax.net.ssl.** { *; }
 -keep class org.openjsse.net.ssl.** { *; }
 -keep class com.squareup.okhttp3.**{*;}
+
+-keep class org.java_websocket.** { *; }
+-dontwarn org.java_websocket.**
+-keep class org.java_websocket.handshake.** { *; }

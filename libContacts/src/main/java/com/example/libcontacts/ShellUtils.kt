@@ -1,7 +1,7 @@
-package com.lu.wxmask.util
+package com.example.libcontacts
 
+import com.lu.magic.util.log.LogUtil
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.BufferedReader
 import java.io.DataOutputStream
@@ -11,20 +11,81 @@ import java.io.IOException
 import java.io.InputStream
 import java.io.InputStreamReader
 import java.io.OutputStream
-import java.io.PipedInputStream
-import java.io.PipedOutputStream
 
 /**
  * @Author: zengke
  * @Date: 2018.12
  */
-object PasswordUtiles {
+object ShellUtils {
     const val WX_ROOT_PATH: String = "/data/data/com.tencent.mm/"
 
     private const val WX_SP_UIN_PATH = WX_ROOT_PATH + "shared_prefs/auth_info_key_prefs.xml"
     private val `in`: FileInputStream? = null
     private var localDataOutputStream: DataOutputStream? = null
 
+    private const val TAG = "ShellUtils"
+
+    /**
+     * 执行 root 命令
+     * @param command 命令
+     * @return 命令执行结果或错误码
+     */
+    fun execRootCmd1(command: String): Any {
+        var process: Process? = null
+        var dos: DataOutputStream? = null
+        var reader: BufferedReader? = null
+        var errorReader: BufferedReader? = null
+
+        try {
+            process = Runtime.getRuntime().exec("su")
+            dos = DataOutputStream(process.outputStream)
+            reader = BufferedReader(InputStreamReader(process.inputStream))
+            errorReader = BufferedReader(InputStreamReader(process.errorStream))
+
+            // Execute command
+            dos.writeBytes("$command\n")
+            dos.flush()
+            dos.writeBytes("exit\n")
+            dos.flush()
+            process.waitFor()
+
+            // Read output
+            val output = StringBuilder()
+            var line: String? = reader.readLine()
+            while (line != null) {
+                output.append(line).append("\n")
+                line = reader.readLine()
+            }
+            // Read errors
+            val errorOutput = StringBuilder()
+            line = errorReader.readLine()
+            while (line != null) {
+                errorOutput.append(line).append("\n")
+                line = errorReader.readLine()
+            }
+            LogUtil.d(TAG,"error output=$errorOutput")
+            return if (errorOutput.isEmpty()){
+                output.toString().trim()
+            }else{
+                errorOutput.toString()
+            }
+        } catch (e: IOException) {
+            LogUtil.e(TAG, "execRootCmd error", e)
+            return -1
+        } catch (e: InterruptedException) {
+            LogUtil.e(TAG, "execRootCmd error", e)
+            return -2
+        } finally {
+            try {
+                dos?.close()
+                reader?.close()
+                errorReader?.close()
+                process?.destroy()
+            } catch (e: IOException) {
+                LogUtil.e(TAG, "Error closing streams", e)
+            }
+        }
+    }
 
     /**
      * execRootCmd("chmod 777 -R /data/data/com.tencent.mm");

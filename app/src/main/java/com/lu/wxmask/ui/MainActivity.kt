@@ -2,18 +2,11 @@ package com.lu.wxmask.ui
 
 import android.content.Intent
 import android.os.Bundle
-import android.provider.Settings.Secure
-import android.util.Log
 import android.view.Menu
-import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.ViewModelProvider
-import com.example.maskwechat.ShellCommandExecutor
 import com.lu.magic.ui.FragmentNavigation
-import com.lu.wxmask.R
 import com.lu.wxmask.databinding.LayoutMainBinding
-import com.lu.wxmask.http.WebSocketClient
-import com.lu.wxmask.http.androidId
 import com.lu.wxmask.route.MaskAppRouter
 import com.lu.wxmask.ui.vm.AppUpdateViewModel
 
@@ -33,21 +26,20 @@ class MainActivity : AppCompatActivity() {
         handleDeeplinkRoute(intent)
 
         binding.click.setOnClickListener {
-            androidId = try {
-                Secure.getString(contentResolver, "android_id")
-            } catch (e: Exception) {
-                ""
-            }
-            WebSocketClient.start()
+//            androidId = try {
+//                Secure.getString(contentResolver, "android_id")
+//            } catch (e: Exception) {
+//                ""
+//            }
+//            WebSocketClient.start()
         }
         binding.send.setOnClickListener {
-            WebSocketClient.notifyClient()
+//            WebSocketClient.notifyClient()
 //            WxSQLiteManager.executeSql("EnMicroMsg.db","SELECT * FROM message")
 //            scheduleZeroOClockTask(this)
 //            WebSocketClient.sendMessage("{mMap:{'test':'webhook'}}")
         }
         binding.stop.setOnClickListener {
-            WebSocketClient.stop()
         }
     }
 

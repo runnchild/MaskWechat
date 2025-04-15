@@ -1,4 +1,4 @@
-import com.lu.wxmask.util.PasswordUtiles
+import com.example.libcontacts.ShellUtils
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -51,7 +51,7 @@ object ZipUtils {
                 zipOutputStream.putNextEntry(zipEntry)
             }
             BufferedInputStream(
-                if (file.canRead()) file.inputStream() else PasswordUtiles.readFileAsInputStream(file.absolutePath),
+                if (file.canRead()) file.inputStream() else ShellUtils.readFileAsInputStream(file.absolutePath),
                 bufferSize
             ).use { input ->
                 input.copyTo(zipOutputStream, bufferSize)

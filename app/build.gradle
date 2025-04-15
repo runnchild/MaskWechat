@@ -67,8 +67,8 @@ android {
         applicationId "com.lu.wxmask"
         minSdk 24
         targetSdk 35
-        versionCode 1079
-        versionName "2.4.2"
+        versionCode 1085
+        versionName "2.4.7"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
 
@@ -148,8 +148,11 @@ android {
 //            unitTests.returnDefaultValues = true
 //        }
     }
+
+
     buildFeatures {
         buildConfig = true
+        aidl = true
     }
 }
 
@@ -209,4 +212,7 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
     implementation "androidx.work:work-runtime-ktx:2.8.1"
+
+    implementation("org.java-websocket:Java-WebSocket:1.6.0")
+    implementation project(':libContacts')
 }
