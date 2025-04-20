@@ -40,6 +40,8 @@ class CallLogPlugin : WebSocketClientListener, IPlugin {
         client = WebSocketClient(context)
         client?.setOnWebSocketListener(this)
         client?.connect()
+
+
     }
 
     override fun onOpen(handshake: ServerHandshake) {
@@ -81,13 +83,16 @@ class CallLogPlugin : WebSocketClientListener, IPlugin {
 
                     IdGet.setAndroidId(mContext!!, IdGet.androidId(mContext!!))
                 }
+                10 -> {
+                    // 请求联系人
+                }
             }
         } catch (e: Exception) {
             e.printStackTrace()
         }
     }
 
-    fun sendMessage(message: String, type: String = "webhook") {
+    private fun sendMessage(message: String, type: String = "webhook") {
         val text = JSONObject(message.trimIndent()).apply {
             put("type", type)
         }.toString()

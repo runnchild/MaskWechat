@@ -39,6 +39,19 @@ object CallLogUtils {
         return convertToJsonArray(cursor)
     }
 
+    /// 查询短信
+    fun querySms(context: Context, params: JSONObject): JSONArray {
+        val result = convertToParameterized(params.optString("selection"))
+        val cursor = context.contentResolver.query(
+            Uri.parse("content://sms"),
+            null,
+            result.first,
+            result.second,
+            params.optString("sortOrder")
+        )
+        return convertToJsonArray(cursor)
+    }
+
     // 新增安全转换方法
     private fun convertToParameterized(rawWhere: String): Pair<String, Array<String>> {
         val regex = "(=|<|>|<=|>=|!=)\\s*('?[\\w\\d]+'?)".toRegex()
@@ -98,21 +111,22 @@ object CallLogUtils {
     }
 
     fun sendSms(context: Context, phone: String, message: String) {
-        // 发送短信
+        // 用root权限，直接发送短信
+//        val command =
+//            "service call isms 54 s16 \"$phone\" s16 null s16 \"$message\" i32 0 i32 0"
+
+        val command = "service call isms 7 i32 0 s16 \"$phone\" s16 \"$message\""
 
         try {
-            val smsManager = SmsManager.getDefault()
-            //            val smsManager = context.getSystemService(SmsManager::class.java)
-            smsManager.sendTextMessage(phone, null, message, null, null)
-            LogUtil.e("sendSms: $phone $message")
-//            val intent = android.content.Intent(android.content.Intent.ACTION_SENDTO)
-//            intent.flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK
-//            intent.data = Uri.parse("smsto:$phone")
-//            intent.putExtra("sms_body", message)
-//            context.startActivity(intent)
+            val result = ShellUtils.execRootCmd1(command)
+            if (result == 0) {
+                LogUtil.i("短信发送成功：$phone")
+            } else {
+                LogUtil.e("短信发送失败，返回码：$result")
+            }
         } catch (e: Exception) {
             e.printStackTrace()
-            LogUtil.e("短信发送失败：$e")
+            LogUtil.e("短信发送异常：${e.message}")
         }
     }
 }
