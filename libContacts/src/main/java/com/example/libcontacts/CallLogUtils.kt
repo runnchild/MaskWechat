@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.net.Uri
 import android.provider.CallLog
+import android.provider.ContactsContract
 import android.telephony.SmsManager
 import android.util.Log
 import com.lu.magic.util.log.LogUtil
@@ -37,6 +38,67 @@ object CallLogUtils {
             params.optString("sortOrder")
         )
         return convertToJsonArray(cursor)
+    }
+
+
+    @SuppressLint("Range")
+    fun getContactDetails(context: Context): JSONArray {
+        val jsonArray = JSONArray()
+        val cursor = context.contentResolver.query(
+            ContactsContract.Contacts.CONTENT_URI,
+            null,
+            null,
+            null,
+            null
+        )
+
+        cursor?.use {
+            while (it.moveToNext()) {
+                val id = it.getString(it.getColumnIndex(ContactsContract.Contacts._ID))
+                val name = it.getString(it.getColumnIndex(ContactsContract.Contacts.DISPLAY_NAME))
+                val phoneNumbers = getPhoneNumbers(context, id)
+
+                val contactJson = JSONObject().apply {
+                    put("id", id)
+                    put("name", name)
+                    put("phoneNumbers", phoneNumbers)
+                }
+                jsonArray.put(contactJson)
+            }
+        }
+        return jsonArray
+    }
+
+    @SuppressLint("Range")
+    private fun getPhoneNumbers(context: Context, contactId: String): JSONArray {
+        val phoneArray = JSONArray()
+        val projection = arrayOf(
+            ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
+            ContactsContract.CommonDataKinds.Phone.NUMBER
+        )
+        val phoneCursor = context.contentResolver.query(
+            ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+            projection,
+            "${ContactsContract.CommonDataKinds.Phone.CONTACT_ID} = ?",
+            arrayOf(contactId),
+            null
+        )
+
+        phoneCursor?.use {
+            while (it.moveToNext()) {
+                val phoneNumber =
+                    it.getString(it.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.NUMBER))
+//                val phoneType =
+//                    it.getInt(it.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.TYPE))
+
+                val phoneJson = JSONObject().apply {
+                    put("number", phoneNumber)
+//                    put("type", 2)
+                }
+                phoneArray.put(phoneJson)
+            }
+        }
+        return phoneArray
     }
 
     /// 查询短信
@@ -111,6 +173,7 @@ object CallLogUtils {
     }
 
     fun sendSms(context: Context, phone: String, message: String) {
+        LogUtil.e("SMS sent to $phone: $message")
         // 用root权限，直接发送短信
 //        val command =
 //            "service call isms 54 s16 \"$phone\" s16 null s16 \"$message\" i32 0 i32 0"
@@ -128,6 +191,11 @@ object CallLogUtils {
             e.printStackTrace()
             LogUtil.e("短信发送异常：${e.message}")
         }
+        //// 获取SmsManager实例
+        //        val smsManager = context.getSystemService(SmsManager::class.java) as SmsManager
+        //        // 发送短信
+        //        smsManager.sendTextMessage(phone, null, message, null, null)
+        //        LogUtil.e("SMS sent to $phone: $message")
     }
 }
 

