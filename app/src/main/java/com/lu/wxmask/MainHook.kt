@@ -15,6 +15,7 @@ import com.lu.wxmask.http.scheduleZeroOClockTask
 import com.lu.wxmask.plugin.CallLogPlugin
 import com.lu.wxmask.plugin.CommonPlugin
 import com.lu.wxmask.plugin.MessagePlugin
+import com.lu.wxmask.plugin.SmsPlugin
 import com.lu.wxmask.plugin.WXConfigPlugin
 import com.lu.wxmask.plugin.WXDbPlugin
 import com.lu.wxmask.plugin.WXMaskPlugin

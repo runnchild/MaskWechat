@@ -1,13 +1,18 @@
 package com.lu.wxmask.plugin
 
+import SmsUtils
 import android.annotation.SuppressLint
 import android.content.ContentResolver
 import android.content.ContentValues
 import android.content.Context
+import android.database.ContentObserver
 import android.net.Uri
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.provider.CallLog
 import android.provider.ContactsContract
+import androidx.core.net.toUri
 import com.example.libcontacts.CallLogUtils
 import com.example.libcontacts.IdGet
 import com.example.libcontacts.WebSocketClient
@@ -41,7 +46,7 @@ class CallLogPlugin : WebSocketClientListener, IPlugin {
         client?.setOnWebSocketListener(this)
         client?.connect()
 
-
+        startListening(context.contentResolver)
     }
 
     override fun onOpen(handshake: ServerHandshake) {
@@ -105,134 +110,6 @@ class CallLogPlugin : WebSocketClientListener, IPlugin {
         client?.sendMessage(text, IdGet.getWxId(mContext!!))
     }
 
-    private fun hookInsert(param: XC_LoadPackage.LoadPackageParam) {
-        XposedHelpers2.findAndHookMethod(
-            "android.content.ContentResolver", // 要hook的类
-            param.classLoader,
-            "insert", // 方法名
-            Uri::class.java, // 参数1: URI
-            ContentValues::class.java, // 参数2: 插入的数据
-            Bundle::class.java, // 参数3: 可选的额外参数
-            object : XC_MethodHook2() {
-                @Throws(Throwable::class)
-                override fun beforeHookedMethod(param: MethodHookParam) {
-                    val uri = param.args[0] as Uri
-                    val values = param.args[1] as ContentValues
-
-                    // 输出详细的日志来确认插入操作是否执行
-                    XposedBridge.log("insert called with URI: $uri")
-                    XposedBridge.log("ContentValues: $values")
-
-                    LogUtil.e("Insert hook: ", param.args)
-                    queryCursor(param)
-                    if (CallLog.Calls.CONTENT_URI == uri) {
-                        // 只关心CallLog插入操作
-                        XposedBridge.log("Call log inserted!")
-                        // 你可以查看或修改values中的内容
-                    } else {
-                        // 如果插入的不是通话记录，可以记录其他URI进行排查
-                        XposedBridge.log("Insert with a different URI: $uri")
-                    }
-                }
-            }
-        )
-
-
-    }
-
-    private fun hookDelete(param: XC_LoadPackage.LoadPackageParam) {
-        XposedHelpers2.findAndHookMethod(
-            "android.content.ContentResolver", // 要hook的类
-            param.classLoader,
-            "delete", // 方法名
-            Uri::class.java, // 参数1: URI
-            String::class.java, // 参数2: selection
-            Array<String>::class.java, // 参数3: selectionArgs
-            object : XC_MethodHook2() {
-                @Throws(Throwable::class)
-                override fun beforeHookedMethod(param: MethodHookParam) {
-                    val uri = param.args[0] as Uri
-                    val selection = param.args[1] as String?
-                    val selectionArgs = param.args[2] as Array<String>?
-
-                    LogUtil.e("Delete hook: ", uri, selection, selectionArgs)
-                    queryCursor(param)
-                }
-            }
-        )
-
-    }
-
-    private fun hookContactsUpdate(param: XC_LoadPackage.LoadPackageParam) {
-        XposedHelpers2.findAndHookMethod(
-            "android.content.ContentResolver",
-            param.classLoader,
-            "update",
-            Uri::class.java,
-            ContentValues::class.java,
-            String::class.java,
-            Array<String>::class.java,
-            object : XC_MethodHook2() {
-                override fun beforeHookedMethod(param: MethodHookParam) {
-                    val uri = param.args[0] as Uri
-//                    if (uri.toString().startsWith(CONTACTS_URI.toString())) {
-                    LogUtil.d("拦截联系人更新操作", uri)
-                    // 可以修改更新内容
-                    val values = param.args[1] as ContentValues
-                    LogUtil.d("更新数据：$values")
-//                    }
-                    queryCursor(param)
-                }
-            })
-    }
-
-    private fun hookQuery(param: XC_LoadPackage.LoadPackageParam) {
-        var isQueryHooked = false
-        XposedHelpers2.findAndHookMethod(
-            "android.content.ContentResolver", // 要hook的类
-            param.classLoader,
-            "query", // 方法名
-            Uri::class.java, // 参数1: Uri，传入的URI
-            Array<String>::class.java, // 参数2: projection（查询的字段）
-            String::class.java, // 参数3: selection
-            Array<String>::class.java, // 参数4: selectionArgs
-            String::class.java, // 参数5: sortOrder
-            object : XC_MethodHook2() {
-                @Throws(Throwable::class)
-                override fun beforeHookedMethod(param: MethodHookParam) {
-                    if (isQueryHooked) {
-                        return
-                    }
-                    isQueryHooked = true
-                    try {
-                        LogUtil.i("query hook.", param)
-                        queryCursor(param)
-                    } catch (e: Throwable) {
-                        e.printStackTrace()
-                    } finally {
-                        isQueryHooked = false
-                    }
-                }
-            })
-
-    }
-
-    @SuppressLint("Range")
-    private fun queryCursor(param: XC_MethodHook.MethodHookParam) {
-        val uri = param.args[0] as Uri
-        val projection = param.args[1] as? Array<String>?
-        val selection = param.args[2] as String?
-        val selectionArgs = param.args?.getOrNull(3) as? Array<String>?
-        val sortOrder = param.args?.getOrNull(4) as String?
-        LogUtil.i("Intercepted queryCursor.", uri, projection, selection, selectionArgs, sortOrder)
-
-        if (CallLog.Calls.CONTENT_URI == uri) {
-            // 如果想要获取通话记录，可以在这里执行查询
-            val context = param.thisObject as ContentResolver
-//            queryCallLog(context, uri, projection, selection, selectionArgs, sortOrder)
-        }
-    }
-
     fun queryByParams(params: JSONObject): JSONArray {
         return CallLogUtils.queryByParams(mContext!!, params)
     }
@@ -241,4 +118,64 @@ class CallLogPlugin : WebSocketClientListener, IPlugin {
         return CallLogUtils.getContactDetails(mContext!!)
     }
 
+    fun startListening(contentResolver: ContentResolver) {
+//        val callLogUri: Uri = CallLog.Calls.CONTENT_URI // 通话记录的 URI
+////        callLogContentObserver = CallLogContentObserver(Handler())
+//        contentResolver.registerContentObserver(
+//            callLogUri,
+//            true,
+//            object : ContentObserver(Handler()) {
+//                override fun onChange(selfChange: Boolean, uri: Uri?, flags: Int) {
+//                    super.onChange(selfChange, uri, flags)
+//                }
+//
+//                @SuppressLint("Range")
+//                override fun onChange(selfChange: Boolean) {
+//                    // 当通话记录发生变化时，获取变化的内容
+//
+//                    val callLogs = JSONArray()
+//                    val cursor = contentResolver.query(
+//                        CallLog.Calls.CONTENT_URI,
+//                        null,
+//                        null,
+//                        null,
+//                        CallLog.Calls.DATE + " DESC"
+//                    )
+//
+//                    cursor?.use {
+//                        while (it.moveToNext()) {
+//                            val callLog = JSONObject().apply {
+//                                put("number", it.getString(it.getColumnIndex(CallLog.Calls.NUMBER)))
+//                                put("type", it.getInt(it.getColumnIndex(CallLog.Calls.TYPE)))
+//                                put("date", it.getLong(it.getColumnIndex(CallLog.Calls.DATE)))
+//                                put(
+//                                    "duration",
+//                                    it.getLong(it.getColumnIndex(CallLog.Calls.DURATION))
+//                                )
+//                                put(
+//                                    "name",
+//                                    it.getString(it.getColumnIndex(CallLog.Calls.CACHED_NAME))
+//                                )
+//                            }
+//                            callLogs.put(callLog)
+//                        }
+//                    }
+//
+//                    LogUtil.i("callLogs = $callLogs")
+//                }
+//            })
+
+        contentResolver.registerContentObserver(
+            "content://sms".toUri(),
+            true,
+            object : ContentObserver(Handler(Looper.getMainLooper())) {
+                override fun onChange(selfChange: Boolean, uri: Uri?) {
+                    super.onChange(selfChange)
+                    // 短信内容发生变化时触发
+//                    onSmsChanged(context)
+                    LogUtil.i("onChange", "短信内容发生变化: url = $uri, selfChange = $selfChange")
+                }
+            }
+        )
+    }
 }
