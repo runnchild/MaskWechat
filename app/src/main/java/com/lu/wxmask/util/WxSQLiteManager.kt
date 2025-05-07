@@ -1,6 +1,7 @@
 package com.lu.wxmask.util
 
 import android.annotation.SuppressLint
+import android.content.Context
 import android.database.Cursor
 import com.lu.lposed.api2.XposedHelpers2
 import com.lu.magic.util.CursorUtil
@@ -9,6 +10,8 @@ import com.lu.wxmask.ClazzN
 import com.lu.wxmask.bean.DBItem
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.File
+import java.io.RandomAccessFile
 import java.lang.reflect.Array
 
 class WxSQLiteManager {
@@ -99,7 +102,7 @@ class WxSQLiteManager {
                 true
             }?.let {
                 sqlite(it.name, it.password)
-            } ?: openDbItemWithName(dbName)
+            }// ?: openDbItemWithName(dbName)
 
             LogUtil.d("executeSql item from", sqliteInstance, "sql=", sql)
             sqliteInstance ?: return JSONArray().apply {
@@ -128,37 +131,43 @@ class WxSQLiteManager {
             return null
         }
 
-        fun getWxId(): String {
-            val data = executeSql("EnMicroMsg.db", "select * from userinfo where id = 2")
-            for (i in 0 until data.length()) {
-                val item = data.get(i)
-                if (item is JSONObject) {
-                    val id = item.optString("id")
-                    LogUtil.i("id ", id, item)
-                    return item.optString("value")
-                } else {
-                    LogUtil.i("item ", item)
-                }
-            }
-            return ""
+        fun getWxId(context: Context): String {
+            return getUinFromPrefs(context)
+        }
+
+        private fun getUinFromPrefs(context: Context): String {
+            val prefs = context.getSharedPreferences(
+                "com.tencent.mm_preferences",
+                Context.MODE_PRIVATE
+            )
+            return prefs.getString("login_weixin_username", "") ?: ""
         }
 
         private fun getDataBase(path: String, password: String?): Any? {
+            // 1. 添加数据库存在性检查
+            if (!File(path).exists()) {
+                LogUtil.e("Database file not exist: $path")
+                return null
+            }
             // 获取正确的Cipher实现类
             val cipherClazz = ClazzN.from("com.tencent.wcdb.database.SQLiteCipherSpec")
             val cipher = XposedHelpers2.newInstance(cipherClazz).apply {
-                // 根据微信使用的SQLCipher版本设置（通常微信用3.x版本）
-                XposedHelpers2.callMethod<Any>(this, "setSQLCipherVersion", 1)
-                // 如果页大小不符需要调整（根据实际数据库设置）
-                XposedHelpers2.callMethod(this, "setPageSize", 1024)
+                // 2. 添加版本检测逻辑
+                val detectedVersion = detectSQLCipherVersion(path) // 需要实现检测方法
+                XposedHelpers2.callMethod<Any>(this, "setSQLCipherVersion", detectedVersion ?: 1)
+
+                // 3. 使用更安全的默认页大小
+                XposedHelpers2.callMethod(this, "setPageSize", 4096)
             }
 
             val factory = null // 如果不需要自定义 CursorFactory，可以设置为 null
-            val flags = 805306368 // 根据需要设置标志位
+//            val flags = 805306368 // 根据需要设置标志位
+            // 4. 调整标志位为只读模式(0x1)避免意外写入
+            val flags = 0x1// or 0x10
             val safeErrorHandler = XposedHelpers2.newInstance(
                 ClazzN.from("com.tencent.wcdb.DefaultDatabaseErrorHandler")
             )
-            val poolSize = 32 // 根据需要设置连接池大小
+            val poolSize = 1 // 根据需要设置连接池大小
             return XposedHelpers2.callStaticMethod<Any?>(
                 ClazzN.from("com.tencent.wcdb.database.SQLiteDatabase"),
                 "openDatabase",
@@ -170,6 +179,41 @@ class WxSQLiteManager {
                 safeErrorHandler,
                 poolSize
             )
+        }
+
+        private fun detectSQLCipherVersion(path: String): Int? {
+            return try {
+                RandomAccessFile(path, "r").use { file ->
+                    val buffer = ByteArray(16)
+                    file.read(buffer)
+
+                    // SQLCipher 3.x 魔数 "SQLite format 3\u0000"
+                    if (buffer.copyOfRange(0, 16).contentEquals(
+                            byteArrayOf(
+                                0x53, 0x51, 0x4C, 0x69, 0x74, 0x65, 0x20, 0x66,
+                                0x6F, 0x72, 0x6D, 0x61, 0x74, 0x20, 0x33, 0x00
+                            )
+                        )
+                    ) {
+                        1 // 对应微信使用的3.x版本
+                    }
+                    // SQLCipher 4.x 魔数 (不同)
+                    else if (buffer.copyOfRange(0, 12).contentEquals(
+                            byteArrayOf(
+                                0x53, 0x51, 0x4C, 0x69, 0x74, 0x65, 0x20, 0x66,
+                                0x6F, 0x72, 0x6D, 0x61
+                            )
+                        )
+                    ) {
+                        2 // 对应4.x版本
+                    } else {
+                        null // 未知版本
+                    }
+                }
+            } catch (e: Exception) {
+                LogUtil.e("detectSQLCipherVersion error", e)
+                null
+            }
         }
     }
 }

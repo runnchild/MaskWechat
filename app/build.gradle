@@ -59,6 +59,40 @@ this.afterEvaluate {
 
 }
 
+def versionPropsFile = file("version.properties")
+def versionProps = new Properties()
+
+if (versionPropsFile.exists()) {
+    versionProps.load(new FileInputStream(versionPropsFile))
+} else {
+    throw new FileNotFoundException("version.properties 文件未找到！")
+}
+
+def currentVersionCode = versionProps['versionCode'].toInteger()
+def currentVersionName = versionProps['versionName']
+
+// 添加任务钩子来更新版本信息
+tasks.configureEach { task ->
+    if (task.name.contains("assembleRelease")) {
+        task.doLast {
+            // 递增 versionCode
+            versionProps['versionCode'] = (currentVersionCode + 1).toString() // 确保是 String 类型
+
+            // 自动递增 versionName 的规则
+            def versionParts = currentVersionName.tokenize(".")
+            def major = versionParts[0].toInteger()
+            def minor = versionParts[1].toInteger()
+            def patch = versionParts[2].toInteger() + 1
+
+            versionProps['versionName'] = "${major}.${minor}.${patch}".toString() // 转换为 String
+
+            // 将更新后的版本信息写回文件
+            versionProps.store(new FileOutputStream(versionPropsFile), null)
+            println(">>> 版本号更新成功: versionCode=${versionProps['versionCode']}, versionName=${versionProps['versionName']}")
+        }
+    }
+}
+
 android {
     namespace 'com.lu.wxmask'
     compileSdk 35
@@ -67,8 +101,8 @@ android {
         applicationId "com.lu.wxmask"
         minSdk 24
         targetSdk 35
-        versionCode 1088
-        versionName "2.5.0"
+        versionCode currentVersionCode
+        versionName currentVersionName
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
 
@@ -130,7 +164,7 @@ android {
         def size = outputs.size()
         def commit = new JSONObject(buildInfoJson).optString("commit").substring(0, 6)
         outputs.eachWithIndex { Object output, int index ->
-            def fontName = "maskwechat-v${variant.versionName}-${commit}-${variant.name}"
+            def fontName = "maskwechat-v${variant.versionName}-${variant.name}"
             if (size == 1) {
                 output.outputFileName = "${fontName}.apk"
             } else {

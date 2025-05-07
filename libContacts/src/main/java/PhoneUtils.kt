@@ -1,12 +1,18 @@
+import android.Manifest.permission
 import android.annotation.SuppressLint
+import android.content.ContentResolver
 import android.content.Context
 import android.net.Uri
 import android.os.Build
 import android.provider.ContactsContract
+import android.telephony.SubscriptionInfo
+import android.telephony.SubscriptionManager
 import android.text.TextUtils
 import android.util.Log
 import com.example.libcontacts.entity.ContactInfo
+import com.example.libcontacts.entity.SimInfo
 import com.example.libcontacts.entity.SmsInfo
+import com.lu.magic.util.log.LogUtil
 import java.util.Locale
 import kotlin.math.min
 
@@ -225,6 +231,111 @@ object PhoneUtils {
         }
 
         return contactInfoList
+    }
+
+    @SuppressLint("Range")
+    fun getSimMultiInfo(context: Context): MutableMap<Int, SimInfo> {
+        val infoList = HashMap<Int, SimInfo>()
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) {
+                Log.d(TAG, "1.版本超过5.1，调用系统方法")
+                val mSubscriptionManager = context.getSystemService(Context.TELEPHONY_SUBSCRIPTION_SERVICE) as SubscriptionManager
+                val activeSubscriptionInfoList: List<SubscriptionInfo>? = mSubscriptionManager.activeSubscriptionInfoList
+                if (!activeSubscriptionInfoList.isNullOrEmpty()) {
+                    //1.1.1 有使用的卡，就遍历所有卡
+                    for (subscriptionInfo in activeSubscriptionInfoList) {
+                        val simInfo = SimInfo()
+                        simInfo.mCarrierName = subscriptionInfo.carrierName?.toString()
+                        simInfo.mIccId = subscriptionInfo.iccId?.toString()
+                        simInfo.mSimSlotIndex = subscriptionInfo.simSlotIndex
+                        simInfo.mNumber = subscriptionInfo.number?.toString()
+                        simInfo.mCountryIso = subscriptionInfo.countryIso?.toString()
+                        simInfo.mSubscriptionId = subscriptionInfo.subscriptionId
+                        Log.d(TAG, simInfo.toString())
+                        infoList[simInfo.mSimSlotIndex] = simInfo
+                    }
+                }
+            } else {
+                LogUtil.d(TAG, "2.版本低于5.1的系统，首先调用数据库，看能不能访问到")
+                val uri = Uri.parse("content://telephony/siminfo") //访问raw_contacts表
+                val resolver: ContentResolver = context.contentResolver
+                val cursor = resolver.query(
+                    uri, arrayOf(
+                        "_id", "icc_id", "sim_id", "display_name", "carrier_name", "name_source", "color", "number", "display_number_format", "data_roaming", "mcc", "mnc"
+                    ), null, null, null
+                )
+                if (cursor != null && cursor.moveToFirst()) {
+                    do {
+                        val simInfo = SimInfo()
+                        simInfo.mCarrierName = cursor.getString(cursor.getColumnIndex("carrier_name"))
+                        simInfo.mIccId = cursor.getString(cursor.getColumnIndex("icc_id"))
+                        simInfo.mSimSlotIndex = cursor.getInt(cursor.getColumnIndex("sim_id"))
+                        simInfo.mNumber = cursor.getString(cursor.getColumnIndex("number"))
+                        simInfo.mCountryIso = cursor.getString(cursor.getColumnIndex("mcc"))
+                        //val id = cursor.getString(cursor.getColumnIndex("_id"))
+                        Log.d(TAG, simInfo.toString())
+                        infoList[simInfo.mSimSlotIndex] = simInfo
+                    } while (cursor.moveToNext())
+                    cursor.close()
+                }
+            }
+        } catch (e: java.lang.Exception) {
+            e.printStackTrace()
+            LogUtil.e(TAG, "getSimMultiInfo:", e)
+        }
+        //仍然获取不到/只获取到一个->取出备注
+        /*if (infoList.isEmpty() || infoList.size == 1) {
+            Log.d(TAG, "3.直接取出备注框的数据作为信息")
+            //为空，两个卡都没有获取到信息
+            if (infoList.isEmpty()) {
+                //卡1备注信息不为空
+                val etExtraSim1 = SettingUtils.extraSim1
+                if (!TextUtils.isEmpty(etExtraSim1)) {
+                    val simInfo1 = SimInfo()
+                    //卡1
+                    simInfo1.mSimSlotIndex = 0
+                    simInfo1.mNumber = etExtraSim1
+                    simInfo1.mSubscriptionId = SettingUtils.subidSim1
+                    //把卡放入
+                    infoList[simInfo1.mSimSlotIndex] = simInfo1
+                }
+                //卡2备注信息不为空
+                val etExtraSim2 = SettingUtils.extraSim2
+                if (!TextUtils.isEmpty(etExtraSim2)) {
+                    val simInfo2 = SimInfo()
+                    simInfo2.mSimSlotIndex = 1
+                    simInfo2.mNumber = etExtraSim2
+                    simInfo2.mSubscriptionId = SettingUtils.subidSim2
+                    //把卡放入
+                    infoList[simInfo2.mSimSlotIndex] = simInfo2
+                }
+
+                //有一张卡,判断是卡几
+            } else {
+                var infoListIndex = -1
+                for (obj in infoList) {
+                    infoListIndex = obj.key
+                }
+                //获取到卡1，且卡2备注信息不为空
+                if (infoListIndex == 0 && !TextUtils.isEmpty(SettingUtils.extraSim2)) {
+                    //获取到卡1信息，卡2备注不为空，创建卡2实体
+                    val simInfo2 = SimInfo()
+                    simInfo2.mSimSlotIndex = 1
+                    simInfo2.mNumber = SettingUtils.extraSim2
+                    simInfo2.mSubscriptionId = SettingUtils.subidSim1
+                    infoList[simInfo2.mSimSlotIndex] = simInfo2
+                } else if (infoListIndex == 1 && !TextUtils.isEmpty(SettingUtils.extraSim1)) {
+                    //获取到卡2信息，卡1备注不为空，创建卡1实体
+                    val simInfo1 = SimInfo()
+                    simInfo1.mSimSlotIndex = 0
+                    simInfo1.mNumber = SettingUtils.extraSim1
+                    simInfo1.mSubscriptionId = SettingUtils.subidSim1
+                    infoList[simInfo1.mSimSlotIndex] = simInfo1
+                }
+            }
+        }*/
+        LogUtil.i(TAG, infoList.toString())
+        return infoList
     }
 
     /**

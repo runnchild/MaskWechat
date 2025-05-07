@@ -1,13 +1,17 @@
 package com.example.libcontacts
 
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import com.lu.magic.util.log.LogUtil
 import okhttp3.WebSocket
 import org.java_websocket.client.WebSocketClient
 import org.java_websocket.handshake.ServerHandshake
+import java.lang.Thread.sleep
 import java.net.URI
 import java.net.URISyntaxException
 import java.nio.ByteBuffer
+import java.util.*
 import kotlin.concurrent.thread
 
 interface WebSocketClientListener {
@@ -19,12 +23,12 @@ interface WebSocketClientListener {
 }
 
 class WebSocketClient(val context: Context) {
-    private val TAG = "FileUploader"
+    private val TAG = "WebSocketClient"
 
-    //    private var webSocket: WebSocket? = null
     private val tokenRequest = TokenRequest(context)
     private var onWebSocketListener: WebSocketClientListener? = null
     private lateinit var webSocketClient: WebSocketClient
+    private var heartbeatThread: Thread? = null
 
     private val androidId by lazy {
         IdGet.androidId(context)
@@ -38,7 +42,41 @@ class WebSocketClient(val context: Context) {
         onWebSocketListener = listener
     }
 
-    private val headerInterceptor = HttpHeaderInterceptor()
+    private fun startHeartbeat() {
+        heartbeatThread?.interrupt()
+        heartbeatThread = thread {
+//            while (true) {
+                try {
+                    sleep(30000)
+                    if (::webSocketClient.isInitialized && webSocketClient.isOpen) {
+                        LogUtil.e(context.packageName, "发送心跳: $androidId")
+                        webSocketClient.send("""{"mMap":{"ping":"ppp"},"mValues":null,"type":"webhook"}""")
+                    } else {
+                        LogUtil.w(context.packageName, "心跳发送失败, 连接中")
+                        connect()
+                    }
+                } catch (e: InterruptedException) {
+                    LogUtil.w(context.packageName, "心跳发送线程被中断")
+//                    break
+                } catch (e: Exception) {
+                    LogUtil.w(context.packageName, "心跳发送失败, 重连中", e)
+                    reconnect()
+                }
+//            }
+        }
+    }
+
+    private fun reconnect() {
+        // 5秒后重连
+        thread {
+            sleep(5000)
+            connect()
+        }
+    }
+
+    fun isConnected(): Boolean {
+        return webSocketClient.isOpen
+    }
 
     fun connect(): Boolean {
         try {
@@ -49,10 +87,7 @@ class WebSocketClient(val context: Context) {
             headers["imei"] = imei
             headers["Authorization"] = "Bearer ${tokenRequest.getToken()}"
 
-            LogUtil.d(
-                TAG,
-                "尝试连接WebSocket: , AndroidID: $androidId"
-            )
+            LogUtil.d(TAG, "尝试连接WebSocket: , AndroidID: $androidId")
 
             webSocketClient = object : WebSocketClient(uri, headers) {
                 override fun onOpen(handshakedata: ServerHandshake) {
@@ -64,15 +99,13 @@ class WebSocketClient(val context: Context) {
                 }
 
                 override fun onMessage(message: String) {
-                    LogUtil.d(
-                        TAG,
-                        "收到文本消息: $message"
-                    )
+                    LogUtil.d(TAG, "收到文本消息: $message", Thread.currentThread())
                     try {
                         onWebSocketListener?.onMessage(message)
                     } catch (e: InterruptedException) {
                         LogUtil.e(TAG, "消息入队失败", e)
                     }
+                    startHeartbeat()
                 }
 
                 override fun onMessage(bytes: ByteBuffer) {
@@ -81,7 +114,7 @@ class WebSocketClient(val context: Context) {
                 }
 
                 override fun onClose(code: Int, reason: String, remote: Boolean) {
-                    LogUtil.d(
+                    LogUtil.i(
                         TAG,
                         "WebSocket连接已关闭: 代码=$code, 原因=$reason, 远程关闭=$remote"
                     )
@@ -91,19 +124,25 @@ class WebSocketClient(val context: Context) {
                 override fun onError(ex: Exception) {
                     LogUtil.e(TAG, "WebSocket错误: " + ex.message, ex)
                     onWebSocketListener?.onError(ex)
+                    // 错误时触发重连
+//                    this@WebSocketClient.reconnect()
                 }
             }
 
-            webSocketClient.setConnectionLostTimeout(30)
+            webSocketClient.connectionLostTimeout = 30
             webSocketClient.connect()
-
+            startHeartbeat()
 
             // 等待连接建立
             var retries = 0
-            while (!webSocketClient.isOpen() && retries < 5) {
+            while (!webSocketClient.isOpen && retries < 5) {
                 try {
-                    LogUtil.d(TAG, "等待WebSocket连接建立，尝试次数: " + (retries + 1))
-                    Thread.sleep(1000)
+                    LogUtil.i(
+                        TAG,
+                        "等待WebSocket连接建立，尝试次数: " + (retries + 1),
+                        Thread.currentThread()
+                    )
+                    sleep(1000)
                     retries++
                 } catch (e: InterruptedException) {
                     LogUtil.e(TAG, "等待WebSocket连接时被中断", e)
@@ -111,7 +150,7 @@ class WebSocketClient(val context: Context) {
                 }
             }
 
-            if (!webSocketClient.isOpen()) {
+            if (!webSocketClient.isOpen) {
                 LogUtil.e(TAG, "WebSocket连接超时")
                 return false
             }
@@ -126,90 +165,10 @@ class WebSocketClient(val context: Context) {
 
     // 关闭WebSocket连接
     fun close() {
-//        if (webSocketClient.isOpen) {
-//            webSocketClient.close()
-//        }
-    }
-//    fun connect(): Boolean {
-//        val LogUtilging = HttpLoggingInterceptor().apply {
-//            level = HttpLoggingInterceptor.Level.BODY
-//        }
-//        val client = OkHttpClient.Builder()
-//            .pingInterval(10, TimeUnit.SECONDS)
-//            .addInterceptor(LogUtilging)
-//            .addInterceptor(headerInterceptor)
-//            .build()
-//
-//        val request = Request.Builder()
-//            .url("wss://jswx.qychaye.com/ws")
-//            .addHeader("Authorization", "Bearer ${tokenRequest.getToken()}")
-//            .addHeader("Androidid", androidId)
-//            .addHeader("Wxid", IdGet.getWxId(context))
-//            .build()
-//
-//        webSocket = client.newWebSocket(request, object : WebSocketListener() {
-//            override fun onOpen(webSocket: WebSocket, response: Response) {
-//                LogUtil.i(context.packageName, "连接已建立")
-//                onWebSocketListener?.onOpen(webSocket, response)
-//                // 启动心跳保活
-//                startHeartbeat(webSocket)
-//            }
-//
-//            override fun onMessage(webSocket: WebSocket, text: String) {
-//                LogUtil.i(context.packageName, "收到消息: $text")
-//                onWebSocketListener?.onMessage(webSocket, text)
-//            }
-//
-//            override fun onMessage(webSocket: WebSocket, bytes: ByteString) {
-//                LogUtil.i(context.packageName, "收到二进制消息: ${bytes.hex()}")
-//                onWebSocketListener?.onMessage(webSocket, bytes)
-//            }
-//
-//            override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
-//                LogUtil.i(context.packageName, "连接关闭中: $code - $reason")
-//                onWebSocketListener?.onClosing(webSocket, code, reason)
-//            }
-//
-//            override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-//                LogUtil.i(context.packageName, "连接已关闭: $code - $reason")
-//                onWebSocketListener?.onClosed(webSocket, code, reason)
-//            }
-//
-//            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-//                LogUtil.e(context.packageName, "连接失败", t)
-//                onWebSocketListener?.onFailure(webSocket, t, response)
-//                // 重连机制
-//                reconnect()
-//            }
-//        })
-//    }
-
-    private fun startHeartbeat(webSocket: WebSocket) {
-        // 每30秒发送一次心跳
-        thread {
-            while (true) {
-                try {
-                    LogUtil.e(
-                        context.packageName,
-                        "发送心跳: $androidId, ${IdGet.getWxId(context)}"
-                    )
-                    if (!webSocket.send("ping")) {
-                        connect()
-                        return@thread
-                    }
-                    Thread.sleep(30000)
-                } catch (e: Exception) {
-                    LogUtil.e(context.packageName, "心跳发送失败", e)
-                    break
-                }
-            }
+        if (webSocketClient.isOpen) {
+            webSocketClient.close()
+//            heartbeatTimer.cancel() // 取消心跳定时器
         }
-    }
-
-    private fun reconnect() {
-        // 5秒后重连
-        Thread.sleep(5000)
-        connect()
     }
 
     fun sendMessage(message: String, wxId: String) {
@@ -225,16 +184,25 @@ class WebSocketClient(val context: Context) {
             connect()
         }
         webSocketClient.addHeader("Wxid", wxId)
-        if (message is String) {
-            webSocketClient.send(message)
-        } else if (message is ByteArray) {
-            webSocketClient.send(message)
+        try {
+            if (message is String) {
+                if (!message.contains(" diskSpace: ")) {
+                    webSocketClient.send(message)
+                }
+            } else if (message is ByteArray) {
+                if (!message.toString().contains(" diskSpace: ")) {
+                    webSocketClient.send(message)
+                }
+            }
+        } catch (e: Exception) {
+            LogUtil.w(TAG, "发送消息失败", e)
         }
 
-        LogUtil.i(context.packageName, "${webSocketClient.isOpen}", "wid=$wxId, aid=$androidId", "imi=$imei")
+        LogUtil.i(
+            context.packageName,
+            "${webSocketClient.isOpen}",
+            "wid=$wxId, aid=$androidId",
+            "imi=$imei"
+        )
     }
-
-//    fun close() {
-//        webSocket?.close(1000, "正常关闭")
-//    }
 }
